@@ -191,8 +191,16 @@ function renderCart() {
 }
 
 /* ---------- 详情弹窗 ---------- */
+/* 记录浏览足迹（供 AI 客服做个性化推荐） */
+function trackView(id) {
+  const list = JSON.parse(localStorage.getItem('sp_viewed') || '[]');
+  const next = [id, ...list.filter((x) => x !== id)].slice(0, 12);
+  localStorage.setItem('sp_viewed', JSON.stringify(next));
+}
+
 function openDetail(id) {
   const p = PRODUCTS.find((x) => x.id === id);
+  trackView(id);
   state.current = p; state.curSpec = 0; state.curQty = 1;
   $('mImg').src = IMG;
   $('mImg').style.objectPosition = `center ${p.pos}%`;
@@ -350,6 +358,31 @@ $('rangeBtn').onclick = () => {
 
 /* 加载更多 */
 $('loadMoreBtn').onclick = () => { state.shown += PAGE_SIZE; renderGrid(); };
+
+/* ---------- 对外暴露接口（AI 客服等模块复用） ---------- */
+window.Shop = {
+  products: PRODUCTS,
+  state,
+  addToCart,
+  openDetail,
+  openCart,
+  money,
+  toast,
+  filterByCategory(cat) {
+    state.cat = cat; state.keyword = ''; state.shown = PAGE_SIZE;
+    document.querySelectorAll('.cat-link').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === cat));
+    renderGrid();
+    document.getElementById('goods').scrollIntoView({ behavior: 'smooth' });
+  },
+  searchKeyword(kw) {
+    state.keyword = kw; state.cat = 'all'; state.shown = PAGE_SIZE;
+    $('searchInput').value = kw;
+    document.querySelectorAll('.cat-link').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === 'all'));
+    renderGrid();
+    document.getElementById('goods').scrollIntoView({ behavior: 'smooth' });
+  },
+  viewed: () => JSON.parse(localStorage.getItem('sp_viewed') || '[]')
+};
 
 /* ---------- 启动 ---------- */
 renderGrid();

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>雪峰优选 · SnowPeak Store</title>
 <link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/chat.css" />
 </head>
 <body>
 
@@ -185,9 +186,48 @@
   </div>
 </div>
 
+<!-- AI 客服：悬浮入口 -->
+<button class="cs-launcher" id="csLauncher" aria-label="打开 AI 客服">
+  <span class="cs-pulse"></span>
+  <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 3a8 8 0 0 1 8 8v3.2a2.8 2.8 0 0 1-2.8 2.8H16v-5h1.6V11a5.6 5.6 0 0 0-11.2 0v3h1.6v5H6.8A2.8 2.8 0 0 1 4 14.2V11a8 8 0 0 1 8-8zm-2.6 12.8h1.4v4.4H9.4v-4.4zm3.8 0h1.4v4.4h-1.4v-4.4z"/></svg>
+  <span class="cs-dot" id="csDot"></span>
+</button>
+
+<!-- AI 客服：对话面板 -->
+<section class="cs-panel" id="csPanel" aria-hidden="true">
+  <header class="cs-head">
+    <div class="cs-head-l">
+      <span class="cs-avatar">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 3a8 8 0 0 1 8 8v3.2a2.8 2.8 0 0 1-2.8 2.8H16v-5h1.6V11a5.6 5.6 0 0 0-11.2 0v3h1.6v5H6.8A2.8 2.8 0 0 1 4 14.2V11a8 8 0 0 1 8-8z"/></svg>
+      </span>
+      <div>
+        <strong>小峰 · AI 导购</strong>
+        <em><i class="cs-online"></i>在线 · 平均 1 秒回复</em>
+      </div>
+    </div>
+    <div class="cs-head-r">
+      <button id="csReset" title="重新开始对话">⟳</button>
+      <button id="csClose" title="收起">✕</button>
+    </div>
+  </header>
+
+  <div class="cs-body" id="csBody"></div>
+
+  <div class="cs-chips" id="csChips"></div>
+
+  <form class="cs-input" id="csForm">
+    <input type="text" id="csText" placeholder="问问小峰：预算 500 元想买露营装备…" autocomplete="off" maxlength="120" />
+    <button type="submit" aria-label="发送">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 20.5 21 12 3 3.5 3 10l12 2-12 2z"/></svg>
+    </button>
+  </form>
+  <p class="cs-foot">AI 生成回复，仅供参考 · 演示站点不接入真实大模型</p>
+</section>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script src="js/app.js"></script>
+<script src="js/chatbot.js"></script>
 </body>
 </html>
