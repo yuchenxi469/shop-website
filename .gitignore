@@ -5,3 +5,4 @@ data/
 *.log
 tests/author.private.*
 .playwright-cli/
+.DS_Store

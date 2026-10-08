@@ -1,18 +1,58 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { StatusFilter } from "./types";
-import { useTaskSearch } from "./useTaskSearch";
-import { pageOf } from "./query";
+import { useTaskSearch, queryKey } from "./useTaskSearch";
+import { pageOf, readQuery, writeQuery } from "./query";
 export default function App() {
-  const [draft, setDraft] = useState("");
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("ALL");
-  const [page, setPage] = useState(1);
-  const { tasks, loading, error } = useTaskSearch(q, status);
+  // T2：以 URL 作为“已提交状态”的唯一数据源，初始从地址栏恢复。
+  const initial = readQuery(window.location.search);
+  const [draft, setDraft] = useState(initial.q); // 未提交的输入框内容，不进 URL
+  const [q, setQ] = useState(initial.q);
+  const [status, setStatus] = useState<StatusFilter>(initial.status);
+  const [page, setPage] = useState(initial.page);
+  const { tasks, loading, error, successKey } = useTaskSearch(q, status);
   const view = pageOf(tasks, page);
+
+  // T2：浏览器前进/后退时，从 URL 恢复输入、筛选、页码并发起对应查询。
+  useEffect(() => {
+    function onPop() {
+      const f = readQuery(window.location.search);
+      setQ(f.q);
+      setStatus(f.status);
+      setPage(f.page);
+      setDraft(f.q); // 搜索输入框同步
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // T2：仅当“当前 q/status 这次查询已成功落定”后，才按结果页数钳制越界页码。
+  // successKey===当前key 保证不会用加载前空列表或上一次查询结果提前改成1。
+  useEffect(() => {
+    if (loading || error || successKey !== queryKey(q, status)) return;
+    if (page !== view.current) {
+      setPage(view.current);
+      writeQuery({ q, status, page: view.current }, "replace");
+    }
+  }, [loading, error, successKey, q, status, page, view.current]);
+
   function search(e: React.FormEvent) {
     e.preventDefault();
-    setQ(draft.trim());
+    const next = draft.trim();
+    setQ(next);
     setPage(1);
+    // 点击查询：搜索词 trim，页码回 1，replace 当前历史项。
+    writeQuery({ q: next, status, page: 1 }, "replace");
+  }
+  function changeStatus(v: StatusFilter) {
+    setStatus(v);
+    setPage(1);
+    // 筛选变化：页码回 1，push 历史项。
+    writeQuery({ q, status: v, page: 1 }, "push");
+  }
+  function goPage(next: number) {
+    setPage(next);
+    // 翻页：push 历史项（页码不进查询参数，不会重新发起查询）。
+    writeQuery({ q, status, page: next }, "push");
   }
   return (
     <>
@@ -37,10 +77,7 @@ export default function App() {
             状态
             <select
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value as StatusFilter);
-                setPage(1);
-              }}
+              onChange={(e) => changeStatus(e.target.value as StatusFilter)}
             >
               <option value="ALL">全部状态</option>
               <option value="TODO">待办</option>
@@ -87,7 +124,7 @@ export default function App() {
         <nav className="pager" aria-label="分页">
           <button
             disabled={loading || view.current === 1}
-            onClick={() => setPage(view.current - 1)}
+            onClick={() => goPage(view.current - 1)}
           >
             上一页
           </button>
@@ -96,7 +133,7 @@ export default function App() {
           </span>
           <button
             disabled={loading || view.current === view.pages}
-            onClick={() => setPage(view.current + 1)}
+            onClick={() => goPage(view.current + 1)}
           >
             下一页
           </button>
