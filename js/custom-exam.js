@@ -953,33 +953,6 @@ function getDragAfterElement(container, y) {
   ).element;
 }
 
-// 验证和格式化时间
-function validateAndFormatTime(timeString) {
-  if (!timeString || !timeString.trim()) {
-    return null;
-  }
-
-  const timePattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
-  if (timePattern.test(timeString)) {
-    // 格式化时间（确保小时和分钟都是两位数）
-    const [hours, minutes] = timeString.split(":");
-    return `${parseInt(hours).toString().padStart(2, "0")}:${parseInt(minutes).toString().padStart(2, "0")}`;
-  }
-
-  // 尝试修复格式
-  const numbers = timeString.replace(/[^\d]/g, "");
-  if (numbers.length >= 2) {
-    const hours = parseInt(numbers.substring(0, 2));
-    const minutes = numbers.length >= 4 ? parseInt(numbers.substring(2, 4)) : 0;
-
-    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-      return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-    }
-  }
-
-  return null;
-}
-
 // 删除考试环节
 function removeSection(button) {
   const sectionCard = button.closest(".section-card");
@@ -1586,4 +1559,13 @@ function applyCustomExam() {
 
   // 跳转到主页面
   window.location.href = "index.html";
+}
+
+// Node 测试环境导出守卫：浏览器中 document 已定义，不会执行任何导出
+// 纯函数定义在 js/exam-utils.js（测试中直接 require 该文件），此处仅作兼容回退
+if (typeof document === "undefined" && typeof module !== "undefined" && module.exports) {
+  const examUtils = require("./exam-utils.js");
+  module.exports = {
+    validateAndFormatTime: examUtils.validateAndFormatTime,
+  };
 }

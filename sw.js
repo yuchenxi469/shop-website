@@ -1,10 +1,11 @@
-const CACHE_NAME = "exam-clock-v3";
+const CACHE_NAME = "exam-clock-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./custom-exam.html",
   "./introduction.html",
   "./css/styles.css",
+  "./js/exam-utils.js",
   "./js/script.js",
   "./js/custom-exam.js",
   "./assets/images/favicon.png",
