@@ -1,0 +1,48 @@
+/* ============ 登录 / 注册弹窗 ============ */
+.auth-box {
+  width: min(430px, 100%) !important; padding: 34px 34px 30px;
+  /* 用户提供的绿灰笔触纹理图作背景，叠一层半透明白保证可读性 */
+  background: linear-gradient(rgba(255, 255, 255, .68), rgba(255, 255, 255, .78)), url("../assets/auth-bg.jpg") center / cover no-repeat;
+}
+
+.auth-head { text-align: center; margin-bottom: 18px; }
+.auth-logo {
+  display: inline-grid; place-items: center;
+  width: 52px; height: 52px; border-radius: 16px;
+  background: linear-gradient(135deg, var(--brand), #5ea0ff);
+  color: #fff; font-size: 26px; margin-bottom: 10px;
+}
+.auth-head h3 { font-size: 21px; margin: 0 0 4px; }
+.auth-head p { font-size: 13px; color: #98a3b1; }
+
+.auth-tabs { justify-content: center; margin-bottom: 6px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; }
+.auth-form[hidden] { display: none; }
+.auth-form label { font-size: 13px; color: var(--ink-2); display: flex; flex-direction: column; gap: 6px; }
+.auth-form input[type="text"],
+.auth-form input[type="password"],
+.auth-form select {
+  height: 42px; padding: 0 13px; font-size: 14px; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  outline: none; transition: border-color .18s, box-shadow .18s;
+}
+.auth-form select { cursor: pointer; }
+.auth-form input:focus, .auth-form select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, .12);
+}
+
+.auth-row { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+.auth-check { flex-direction: row !important; align-items: center; gap: 6px !important; cursor: pointer; color: var(--ink-2); }
+.auth-check input { accent-color: var(--brand); cursor: pointer; }
+.auth-tip { color: #98a3b1; }
+
+.auth-inline { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--ink-2); }
+
+.auth-err { min-height: 18px; font-size: 12.5px; color: var(--price); margin: -4px 0; }
+
+.auth-submit { width: 100%; height: 44px; font-size: 15px; letter-spacing: 6px; margin-top: 2px; }
+
+/* 顶栏账号按钮的登录态 */
+.account-btn.is-logged { color: var(--brand); font-weight: 600; }

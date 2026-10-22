@@ -7,21 +7,7 @@
   --cs-muted: #6b7686;
 }
 
-/* 悬浮入口 */
-.cs-launcher {
-  position: fixed; right: 26px; bottom: 26px; z-index: 110;
-  width: 60px; height: 60px; border-radius: 50%;
-  background: linear-gradient(135deg, #1f6feb, #56ccf2);
-  color: #fff; display: grid; place-items: center;
-  box-shadow: 0 10px 26px rgba(31, 111, 235, .42);
-  transition: transform .22s, box-shadow .22s;
-}
-.cs-launcher:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 16px 32px rgba(31, 111, 235, .5); }
-.cs-launcher.is-hidden { opacity: 0; pointer-events: none; transform: scale(.6); }
-.cs-pulse { position: absolute; inset: 0; border-radius: 50%; background: rgba(31, 111, 235, .45); animation: csPulse 2.2s infinite; }
-@keyframes csPulse { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(1.55); opacity: 0; } }
-.cs-dot { position: absolute; top: 4px; right: 4px; width: 12px; height: 12px; border-radius: 50%; background: #ff5a5f; border: 2px solid #fff; }
-.cs-dot.is-off { display: none; }
+/* 悬浮入口已删除（四页面改版后由底部导航「客服」进入） */
 
 /* 面板 */
 .cs-panel {
@@ -87,6 +73,10 @@
 .cs-mini-btn:hover { background: var(--cs-brand); color: #fff; }
 .cs-mini-btn.solid { background: linear-gradient(120deg, #ff7a45, #e4393c); color: #fff; }
 
+/* 搜索结果·在商城查看全部 */
+.cs-searchall { display: block; width: 100%; margin-top: 9px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--cs-brand); background: rgba(31, 111, 235, .08); border: 1px dashed rgba(31, 111, 235, .4); border-radius: 10px; cursor: pointer; transition: .18s; }
+.cs-searchall:hover { background: var(--cs-brand); color: #fff; border-style: solid; }
+
 /* 快捷追问 */
 .cs-chips { display: flex; gap: 7px; flex-wrap: wrap; padding: 8px 14px 4px; background: #fff; border-top: 1px solid var(--cs-line); }
 .cs-chip { font-size: 12px; color: var(--cs-brand); background: rgba(31, 111, 235, .08); border: 1px solid rgba(31, 111, 235, .18); border-radius: 999px; padding: 5px 11px; transition: .18s; }
@@ -101,4 +91,6 @@
 .cs-input button:hover { transform: scale(1.07); }
 .cs-foot { text-align: center; font-size: 10.5px; color: #a6b0bd; padding: 0 0 10px; background: #fff; }
 
-/* 固定尺寸：不做窄屏（移动端）适配，始终保持右下角悬浮面板 */
+/* 说明：四页面改版后，本文件只负责面板内部（气泡/卡片/输入区）的视觉样式；
+   面板的定位与宽高由 style.css 的 #view-service .cs-panel 接管（含 ≤560px 窄屏适配），
+   旧的右下角悬浮窗及其固定尺寸策略已废弃 */

@@ -4,8 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>雪峰优选 · SnowPeak Store</title>
-<link rel="stylesheet" href="css/style.css" />
-<link rel="stylesheet" href="css/chat.css" />
+<link rel="stylesheet" href="css/style.css?v=21" />
+<link rel="stylesheet" href="css/chat.css?v=21" />
+<link rel="stylesheet" href="css/auth.css?v=21" />
 </head>
 <body>
 
@@ -46,23 +47,27 @@
   <div class="catnav">
     <div class="container catnav-inner">
       <button class="cat-link is-active" data-cat="all">全部商品</button>
+      <button class="cat-link" data-cat="服饰鞋包">服饰鞋包</button>
       <button class="cat-link" data-cat="户外装备">户外装备</button>
-      <button class="cat-link" data-cat="摄影器材">摄影器材</button>
-      <button class="cat-link" data-cat="服饰穿搭">服饰穿搭</button>
-      <button class="cat-link" data-cat="家居生活">家居生活</button>
-      <span class="cat-hot">🔥 雪山季 · 满 499 减 50</span>
+      <button class="cat-link" data-cat="数码影音">数码影音</button>
+      <button class="cat-link" data-cat="电玩周边">电玩周边</button>
+      <button class="cat-link" data-cat="生鲜果蔬">生鲜果蔬</button>
+      <span class="cat-hot">🔥 焕新季 · 满 499 减 50</span>
     </div>
   </div>
 </header>
+
+<!-- ============ 页面 1：商品首页 ============ -->
+<div class="view is-active" id="view-home">
 
 <!-- Hero -->
 <section class="hero" id="top">
   <div class="hero-bg"></div>
   <div class="hero-mask"></div>
   <div class="container hero-inner">
-    <p class="hero-eyebrow">2026 雪山系列 · 新品首发</p>
-    <h1 class="hero-title">把整座雪山的<br />辽阔带回家</h1>
-    <p class="hero-sub">从海拔 4000 米的营地到你的客厅，精选 40+ 件高颜值户外与生活好物。</p>
+    <p class="hero-eyebrow">2026 焕新系列 · 新品首发</p>
+    <h1 class="hero-title">把热爱生活的<br />每一件好物带回家</h1>
+    <p class="hero-sub">从潮流球鞋、户外装备到数码影音与生鲜果蔬，精选高颜值好物，一站购齐。</p>
     <div class="hero-actions">
       <a class="btn btn-light" href="#goods">立即选购</a>
       <a class="btn btn-ghost" href="#rights">查看权益</a>
@@ -137,22 +142,41 @@
   </div>
   <div class="copyright">© 2026 雪峰优选 SnowPeak Store · 本站为演示页面，商品与价格均为虚构</div>
 </footer>
+</div><!-- /view-home -->
 
-<!-- 购物车抽屉 -->
-<div class="overlay" id="overlay"></div>
-<aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
+<!-- ============ 页面 3：购物车（底部导航进入的整页版） ============ -->
+<div class="view" id="view-cart">
+<aside class="cart-page-card">
   <div class="drawer-head">
-    <h3>购物车 <span id="drawerCount">（0）</span></h3>
-    <button class="close-x" id="closeCart">✕</button>
+    <h3>购物车 <span class="js-cart-count">（0 件）</span></h3>
   </div>
-  <div class="drawer-body" id="cartList"></div>
+  <div class="drawer-body cart-list-host" id="cartListPage"></div>
   <div class="drawer-foot">
     <div class="cart-tips">满 499 元立减 50 元</div>
-    <div class="total-row"><span>商品合计</span><strong id="cartTotal">¥0.00</strong></div>
-    <div class="total-row discount"><span>优惠减免</span><strong id="cartDiscount">-¥0.00</strong></div>
-    <div class="total-row grand"><span>应付总额</span><strong id="cartGrand">¥0.00</strong></div>
-    <button class="btn btn-primary btn-block" id="checkoutBtn">去结算</button>
-    <button class="btn btn-text" id="clearCartBtn">清空购物车</button>
+    <div class="total-row"><span>商品合计</span><strong class="js-sum-total">¥0.00</strong></div>
+    <div class="total-row discount"><span>优惠减免</span><strong class="js-sum-discount">-¥0.00</strong></div>
+    <div class="total-row grand"><span>应付总额</span><strong class="js-sum-grand">¥0.00</strong></div>
+    <button class="btn btn-primary btn-block js-checkout">去结算</button>
+    <button class="btn btn-text js-clear">清空购物车</button>
+  </div>
+</aside>
+</div><!-- /view-cart -->
+
+<!-- 购物车侧边栏（顶栏🛒按钮/立即购买打开，不切页） -->
+<div class="overlay" id="cartOverlay"></div>
+<aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h3>购物车 <span class="js-cart-count" id="drawerCount">（0 件）</span></h3>
+    <button class="close-x" id="closeCart">✕</button>
+  </div>
+  <div class="drawer-body cart-list-host" id="cartList"></div>
+  <div class="drawer-foot">
+    <div class="cart-tips">满 499 元立减 50 元</div>
+    <div class="total-row"><span>商品合计</span><strong class="js-sum-total">¥0.00</strong></div>
+    <div class="total-row discount"><span>优惠减免</span><strong class="js-sum-discount">-¥0.00</strong></div>
+    <div class="total-row grand"><span>应付总额</span><strong class="js-sum-grand">¥0.00</strong></div>
+    <button class="btn btn-primary btn-block js-checkout">去结算</button>
+    <button class="btn btn-text js-clear">清空购物车</button>
   </div>
 </aside>
 
@@ -161,7 +185,10 @@
   <div class="modal-box">
     <button class="close-x modal-close" id="closeDetail">✕</button>
     <div class="modal-grid">
-      <div class="modal-img"><img id="mImg" src="" alt="商品图" /></div>
+      <div class="modal-img">
+        <img id="mImg" src="" alt="商品图" />
+        <span class="m-img-badge">❄ 正品保障 · 假一赔十</span>
+      </div>
       <div class="modal-info">
         <span class="tag" id="mCat"></span>
         <h3 id="mName"></h3>
@@ -173,9 +200,13 @@
           <del id="mOldPrice"></del>
         </div>
         <div class="m-spec">
-          <span class="m-label">规格</span>
-          <div class="spec-list" id="mSpecs"></div>
+          <span class="m-label" id="mSpecLabel">规格</span>
+          <div class="spec-wrap">
+            <div class="spec-list" id="mSpecs"></div>
+            <button class="size-guide-btn" id="sizeGuideBtn" hidden>📏 尺码指南</button>
+          </div>
         </div>
+        <div class="size-guide" id="sizeGuide" hidden></div>
         <div class="m-actions">
           <div class="qty-ctrl"><button data-step="-1">−</button><span id="mQty">1</span><button data-step="1">＋</button></div>
           <button class="btn btn-primary" id="mAddBtn">加入购物车</button>
@@ -183,18 +214,26 @@
         </div>
       </div>
     </div>
+
+    <!-- 详情标签页 -->
+    <div class="m-tabs">
+      <div class="m-tab-nav" id="mTabNav">
+        <button class="m-tab is-active" data-tab="detail">产品详情</button>
+        <button class="m-tab" data-tab="spec">规格参数</button>
+        <button class="m-tab" data-tab="review">用户评价<em id="mReviewCount"></em></button>
+      </div>
+      <div class="m-tab-body">
+        <div class="m-panel is-active" data-panel="detail" id="mPanelDetail"></div>
+        <div class="m-panel" data-panel="spec" id="mPanelSpec"></div>
+        <div class="m-panel" data-panel="review" id="mPanelReview"></div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- AI 客服：悬浮入口 -->
-<button class="cs-launcher" id="csLauncher" aria-label="打开 AI 客服">
-  <span class="cs-pulse"></span>
-  <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M12 3a8 8 0 0 1 8 8v3.2a2.8 2.8 0 0 1-2.8 2.8H16v-5h1.6V11a5.6 5.6 0 0 0-11.2 0v3h1.6v5H6.8A2.8 2.8 0 0 1 4 14.2V11a8 8 0 0 1 8-8zm-2.6 12.8h1.4v4.4H9.4v-4.4zm3.8 0h1.4v4.4h-1.4v-4.4z"/></svg>
-  <span class="cs-dot" id="csDot"></span>
-</button>
-
-<!-- AI 客服：对话面板 -->
-<section class="cs-panel" id="csPanel" aria-hidden="true">
+<!-- ============ 页面 2：AI 客服 ============ -->
+<div class="view" id="view-service">
+<section class="cs-panel" id="csPanel">
   <header class="cs-head">
     <div class="cs-head-l">
       <span class="cs-avatar">
@@ -223,11 +262,150 @@
   </form>
   <p class="cs-foot">AI 生成回复，仅供参考 · 演示站点不接入真实大模型</p>
 </section>
+</div><!-- /view-service -->
+
+<!-- ============ 页面 4：个人信息 ============ -->
+<div class="view" id="view-me">
+  <div class="container me-wrap">
+    <div class="me-card">
+      <span class="me-avatar">❄</span>
+      <div class="me-id">
+        <strong id="meName">未登录</strong>
+        <em id="meTip">登录后可正常下单、同步收藏</em>
+      </div>
+      <button class="btn btn-primary me-login" id="meLoginBtn">登录 / 注册</button>
+      <button class="btn btn-outline me-login" id="meLogoutBtn" hidden>退出登录</button>
+    </div>
+    <div class="me-stats">
+      <button id="meStatCart"><strong id="meCartN">0</strong><span>购物车</span></button>
+      <button id="meStatWish"><strong id="meWishN">0</strong><span>收藏</span></button>
+      <button id="meStatViewed"><strong id="meViewedN">0</strong><span>浏览足迹</span></button>
+    </div>
+    <h4 class="me-sec">📦 我的订单</h4>
+    <div class="order-list" id="meOrders"></div>
+    <h4 class="me-sec">⭐ 我的收藏</h4>
+    <div class="me-grid" id="meWish"></div>
+    <h4 class="me-sec">🕘 最近浏览</h4>
+    <div class="me-grid" id="meViewed"></div>
+  </div>
+</div><!-- /view-me -->
+
+<!-- ============ 订单完成页（星空背景） ============ -->
+<div class="view" id="view-done">
+  <div class="done-stage">
+    <div class="done-stars" id="doneStars" aria-hidden="true"></div>
+    <div class="done-card">
+      <div class="done-badge">✅</div>
+      <h2>订单提交成功！</h2>
+      <p class="done-sub">感谢信任，雪峰将全力为您备货发货 🏔️✨</p>
+      <div class="done-meta">
+        <div><span>订单编号</span><strong id="doneId">—</strong></div>
+        <div><span>实付金额</span><strong id="doneAmt">—</strong></div>
+        <div><span>预计送达</span><strong id="doneEta">—</strong></div>
+      </div>
+      <p class="done-addr" id="doneAddr"></p>
+    </div>
+    <nav class="done-nav">
+      <button data-done="home"><span>🏠</span><em>继续购物</em></button>
+      <button data-done="service"><span>🎧</span><em>联系客服</em></button>
+      <button data-done="logistics"><span>🚚</span><em>追踪物流</em></button>
+      <button data-done="orders"><span>📋</span><em>订单数据</em></button>
+    </nav>
+  </div>
+</div><!-- /view-done -->
+
+<!-- 下单结算弹窗：收货地址 + 费用明细 -->
+<div class="modal" id="orderModal" aria-hidden="true">
+  <div class="modal-box order-box">
+    <button class="close-x modal-close" id="orderClose">✕</button>
+    <div class="auth-head">
+      <span class="auth-logo">📦</span>
+      <h3>确认订单信息</h3>
+      <p>填写收货地址后提交，可在“我的”页追踪物流</p>
+    </div>
+    <div class="order-items" id="orderItems"></div>
+    <form id="addrForm" class="addr-form" autocomplete="off">
+      <div class="addr-row">
+        <label>收货人<input type="text" id="adName" maxlength="16" placeholder="姓名" required /></label>
+        <label>手机号<input type="tel" id="adPhone" maxlength="11" placeholder="11 位手机号" required /></label>
+      </div>
+      <div class="addr-row">
+        <label>省/直辖市<select id="adProv"></select></label>
+        <label>城市<select id="adCity"></select></label>
+      </div>
+      <label class="addr-full">详细地址<textarea id="adDetail" rows="2" maxlength="60" placeholder="街道、楼牌号等，例：雪峰路 88 号 5 栋 501" required></textarea></label>
+      <label class="auth-check"><input type="checkbox" id="adSave" checked /> 保存为默认收货地址</label>
+    </form>
+    <div class="order-sum">
+      <div class="total-row"><span>商品合计</span><strong id="oSub">¥0.00</strong></div>
+      <div class="total-row discount"><span>优惠减免</span><strong id="oOff">-¥0.00</strong></div>
+      <div class="total-row"><span>运费</span><strong class="o-free">包邮</strong></div>
+      <div class="total-row grand"><span>应付总额</span><strong id="oGrand">¥0.00</strong></div>
+    </div>
+    <p class="auth-err" id="orderErr"></p>
+    <button class="btn btn-primary btn-block auth-submit" id="submitOrderBtn" type="button">提交订单</button>
+  </div>
+</div>
+
+<!-- 登录 / 注册弹窗 -->
+<div class="modal" id="authModal" aria-hidden="true">
+  <div class="modal-box auth-box">
+    <button class="close-x modal-close" id="authClose">✕</button>
+    <div class="auth-head">
+      <span class="auth-logo">❄</span>
+      <h3>雪峰优选</h3>
+      <p>登录后即可下单，享受全场包邮与会员权益</p>
+    </div>
+    <div class="m-tab-nav auth-tabs" id="authTabs">
+      <button class="m-tab is-active" data-authtab="login">登录</button>
+      <button class="m-tab" data-authtab="reg">注册新账号</button>
+    </div>
+
+    <form id="loginForm" class="auth-form" data-authpanel="login" autocomplete="off">
+      <label>昵称 <input type="text" id="lNickname" placeholder="请输入你的名字" maxlength="16" required /></label>
+      <label>密码 <input type="password" id="lPassword" placeholder="请输入你的密码" required /></label>
+      <div class="auth-row">
+        <label class="auth-check"><input type="checkbox" id="lRemember" checked /> 记住我（7 天）</label>
+        <span class="auth-tip">还没有账号？点上方“注册新账号”</span>
+      </div>
+      <p class="auth-err" id="loginErr"></p>
+      <button type="submit" class="btn btn-primary auth-submit">登 录</button>
+    </form>
+
+    <form id="regForm" class="auth-form" data-authpanel="reg" autocomplete="off" hidden>
+      <label>昵称 <input type="text" id="rNickname" placeholder="请输入你的名字（2~16 位）" maxlength="16" required /></label>
+      <label>密码 <input type="password" id="rPassword" placeholder="请设置密码（至少 6 位）" required /></label>
+      <label>确认密码 <input type="password" id="rPassword2" placeholder="再次输入密码" required /></label>
+      <div class="auth-inline">
+        <span>性别</span>
+        <label class="auth-check"><input type="radio" name="rGender" value="男" checked /> 男</label>
+        <label class="auth-check"><input type="radio" name="rGender" value="女" /> 女</label>
+      </div>
+      <label>所在城市
+        <select id="rCity">
+          <option>上海</option><option>北京</option><option>广州</option>
+          <option>深圳</option><option>杭州</option><option>成都</option>
+        </select>
+      </label>
+      <p class="auth-err" id="regErr"></p>
+      <button type="submit" class="btn btn-primary auth-submit">注册并登录</button>
+    </form>
+  </div>
+</div>
+
+<!-- 底部导航 -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab-item is-active" data-view="home"><span class="ti-ico">🏠</span><span>首页</span></button>
+  <button class="tab-item" data-view="service"><span class="ti-ico">🎧</span><span>客服</span></button>
+  <button class="tab-item" data-view="cart"><span class="ti-ico">🛒</span><span>购物车</span><i class="tab-badge" id="tabCartBadge" hidden>0</i></button>
+  <button class="tab-item" data-view="me"><span class="ti-ico">👤</span><span>我的</span></button>
+</nav>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="js/app.js"></script>
-<script src="js/chatbot.js"></script>
+<script src="js/app.js?v=21"></script>
+<script src="js/chatbot.js?v=21"></script>
+<script src="js/auth.js?v=21"></script>
 </body>
 </html>

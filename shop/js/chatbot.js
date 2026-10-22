@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const IMG = 'assets/mountain.jpg';
+  const IMG = 'assets/products/vista-mountain.jpg';
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -54,6 +54,73 @@
       .map((x) => x.p);
   }
 
+  /* ---------- 搜索同义词 / 类目别名（键均为小写） ---------- */
+  const SYNONYMS = {
+    '手机': ['手机', 'iphone', 'iqoo', '旗舰机'],
+    '耳机': ['耳机', '耳塞', '头戴', 'airpods', '蓝牙耳机'],
+    '相机': ['相机', '微单', '卡片机', '拍照', 'sony'],
+    '鞋': ['鞋', '球鞋', '篮球鞋', '跑步鞋', '运动鞋', '跑鞋', '板鞋'],
+    '包': ['包', '背包', '双肩包', '登山包', '徒步包'],
+    '登山杖': ['登山杖', '手杖', '拐杖', '雪仗'],
+    '充电宝': ['充电宝', '移动电源', '电源', '快充'],
+    '手柄': ['手柄', '游戏手柄', '电竞', 'ps5', 'razor', '雷蛇'],
+    '水果': ['水果', '生鲜', '柠檬', '草莓', '苹果', '橘子', '耙耙柑', '丑橘', '橙子'],
+    '户外': ['户外', '露营', '徒步', '登山', '装备'],
+    '数码': ['数码', '影音', '电子']
+  };
+
+  /* ---------- 商品搜索引擎：清洗关键词 → 两层匹配（原始词优先，无命中再同义扩展）→ 打分排序 ---------- */
+  function searchProducts(raw) {
+    const query = String(raw || '').toLowerCase().trim();
+    /* 去掉搜索动词 / 停用词，只留真正的检索词 */
+    const cleaned = query
+      .replace(/(帮我|我想|我要|我想要|请问|有没有|有没有卖|有卖|卖|搜一下|搜索|搜|查找|查一下|查|找一下|找到|找|看看|想看|想入手|入手|来点|来一个|来一款|推荐|介绍一下|哪些|什么|那个|这个|一款|一个|的|吗|呢|要|\?|？)/g, ' ')
+      .replace(/[,，、\s]+/g, ' ')
+      .trim();
+    const terms = (cleaned || query).split(' ').filter(Boolean);
+
+    /* 单个检索词对单个商品的打分：类目 > 商品名 > 描述/规格 */
+    const scoreWord = (p, w) => {
+      if (!w) return 0;
+      const name = p.name.toLowerCase();
+      const cat = p.cat.toLowerCase();
+      const hay = (p.name + ' ' + p.sub + ' ' + p.cat + ' ' + p.specs.join(' ')).toLowerCase();
+      let s = 0;
+      if (cat === w || cat.includes(w)) s += 7;
+      if (name.includes(w)) s += 5; else if (hay.includes(w)) s += 2;
+      return s;
+    };
+    const scoreProduct = (p, wordList) => {
+      let s = 0;
+      wordList.forEach((w) => { s += scoreWord(p, w); });
+      if (cleaned && p.name.toLowerCase().includes(cleaned)) s += 4;
+      return s;
+    };
+
+    /* 第一层：用原始检索词精确命中 */
+    let scored = all().map((p) => ({ p, score: scoreProduct(p, terms) })).filter((x) => x.score > 0);
+
+    /* 第二层：原始词毫无命中时，才做同义词扩展（如 iphone→手机） */
+    if (!scored.length) {
+      const expanded = new Set();
+      terms.forEach((term) => {
+        if (!term) return;
+        Object.keys(SYNONYMS).forEach((k) => {
+          const arr = SYNONYMS[k];
+          /* 检索词可能命中中文 key，也可能命中英文别名（存在 value 里） */
+          const hit = term.includes(k) || k.includes(term)
+            || arr.some((a) => a === term || term.includes(a) || a.includes(term));
+          if (hit) arr.forEach((w) => expanded.add(w.toLowerCase()));
+        });
+      });
+      const words = [...expanded];
+      scored = all().map((p) => ({ p, score: scoreProduct(p, words) })).filter((x) => x.score > 0);
+    }
+
+    scored.sort((a, b) => b.score - a.score || b.p.rating - a.p.rating || b.p.sold - a.p.sold);
+    return { list: scored.map((x) => x.p), keyword: cleaned || query };
+  }
+
   /* 场景 / 人群标签，用于个性化措辞 */
   const SCENES = [
     { key: '露营', words: ['露营', '野营', '营地', '扎营'] },
@@ -79,7 +146,7 @@
       if (wish().includes(p.id)) s += 12;
       if (cart().some((c) => c.id === p.id)) s -= 30;      // 已买过的不再重复推
       if (detectScene(text) === '露营' && p.cat === '户外装备') s += 10;
-      if (detectScene(text) === '摄影' && p.cat === '摄影器材') s += 10;
+      if (detectScene(text) === '摄影' && p.cat === '数码影音') s += 10;
       return { p, s };
     });
     list.sort((a, b) => b.s - a.s);
@@ -122,7 +189,7 @@
         const sum = list.reduce((s, p) => s + p.price, 0);
         const sceneWord = detectScene(t) || profile.scene || '户外';
         return {
-          text: `收到${you()}预算 <b>¥${budget}</b> 的${sceneWord}装备。\n按<b>评分 + 销量 + 是否超价</b>给你挑了 ${list.length} 件，合计 ¥${sum.toFixed(0)}${sum <= budget ? '，正好在预算内 ✅' : '，稍微超了一点，可以先拿下前两件'}：`,
+          text: `${num ? '收到' + you() : '先按之前记住的'}预算 <b>¥${budget}</b> 的${sceneWord}装备。\n按<b>评分 + 销量 + 是否超价</b>给你挑了 ${list.length} 件，合计 ¥${sum.toFixed(0)}${sum <= budget ? '，正好在预算内 ✅' : '，稍微超了一点，可以先拿下前两件'}：`,
           goods: list,
           chips: ['再换一批', '把这些加入购物车', '有没有更便宜的']
         };
@@ -130,15 +197,25 @@
     },
     {
       id: 'search',
-      kw: [],
+      kw: ['搜索', '搜一下', '查找', '有没有', '想看', '找一下', '帮我找', '有卖', '有没有卖', '来点', '找'],
+      rx: /(?:搜索|搜一下|搜|查找|查|找一下|找|有没有|想看|帮我找|入手)\s*([一-龥a-zA-Z0-9 ]{1,20})/,
       run: (t) => {
-        if (!matchProducts(t).length) return null;                 // 没命中商品就交给兼容回答
-        const list = recommend(t, { limit: 3 });
-        const cats = [...new Set(list.map((p) => p.cat))];
+        const { list, keyword } = searchProducts(t);
+        /* 无检索词（如只输入了“搜索”两字）且没命中→交给兵底提示 */
+        if (!keyword || !keyword.replace(/\s/g, '')) return null;
+        if (!list.length) {
+          return {
+            text: `没找到和「<b>${esc(keyword)}</b>」匹配的商品 🙈\n换个关键词试试，或直接点下面的分类浏览：`,
+            chips: ['服饰鞋包', '户外装备', '数码影音', '电玩周边', '生鲜果蔬']
+          };
+        }
+        const top = list.slice(0, 6);
+        const extra = `<button class="cs-searchall" data-cs-searchall="${esc(keyword)}">🔍 共 ${list.length} 件·在商城查看全部</button>`;
         return {
-          text: `${you()}我按「<b>${esc(t.slice(0, 12))}</b>」在 ${cats.join(' / ')} 里找到这几件最贴合的：`,
-          goods: list,
-          chips: ['这件有货吗', '有没有优惠', '帮我对比一下']
+          text: `${you()}按「<b>${esc(keyword)}</b>」找到 <b>${list.length}</b> 件商品，最相关的 ${top.length} 件：`,
+          goods: top,
+          extra,
+          chips: ['看看热销', '帮我对比一下', '这件有货吗']
         };
       }
     },
@@ -170,7 +247,7 @@
         if (total > 0 && gap > 0) {
           const add = recommend('户外装备', { budget: gap + 20, limit: 2 }).filter((p) => p.price <= gap + 5);
           text += `${you()}购物车已有 ¥${total.toFixed(0)}，<b>再凑 ¥${gap.toFixed(0)}</b> 就能减 50 —— 相当于打 ${((1 - 50 / 499) * 10).toFixed(1)} 折。这两件刚好补上：`;
-          return { text, goods: add.length ? add : recommend('家居生活', { budget: gap, limit: 2 }), chips: ['去结算', '换一批凑单品'] };
+          return { text, goods: add.length ? add : recommend('生鲜果蔬', { budget: gap, limit: 2 }), chips: ['去结算', '换一批凑单品'] };
         }
         if (total >= 499) text += `你的购物车已经 ¥${total.toFixed(0)}，<b>满减已达成</b>，直接结算就能减 50 🎉`;
         else text += `购物车还空着，先挑两件？告诉我预算和场景，我来配清单。`;
@@ -249,7 +326,7 @@
       run: (t) => {
         const scene = detectScene(t) || '露营';
         profile.scene = scene; saveProfile();
-        const cat = scene === '摄影' ? '摄影器材' : scene === '家用' ? '家居生活' : '户外装备';
+        const cat = scene === '摄影' ? '数码影音' : scene === '家用' ? '生鲜果蔬' : '户外装备';
         const list = all().filter((p) => p.cat === cat).sort((a, b) => b.rating * b.sold - a.rating * a.sold).slice(0, 3);
         return {
           text: `🎒 <b>${scene}新手三步走</b>（${you()}我按优先级排好了）\n1️⃣ 先解决「待得住」：遮蔽 + 保暖，别急着买花哨小件\n2️⃣ 再解决「走得动」：鞋和背包最值得花钱\n3️⃣ 最后补「拍得美」：出片装备等熟练了再上\n\n按 ${cat} 里口碑最好的三件起步：`,
@@ -371,7 +448,7 @@
       kw: ['按我的偏好', '根据我', '我喜欢什么', '我的口味', '了解我'],
       run: () => {
         const cats = [...new Set([...viewedIds().map((i) => byId(i)?.cat), ...wish().map((i) => byId(i)?.cat)].filter(Boolean))];
-        const src = cats.length ? cats : [pick(['户外装备', '摄影器材', '家居生活'])];
+        const src = cats.length ? cats : [pick(['户外装备', '数码影音', '生鲜果蔬'])];
         const list = all().filter((p) => src.includes(p.cat) && !cart().some((c) => c.id === p.id))
           .sort((a, b) => b.rating * b.sold - a.rating * a.sold).slice(0, 3);
         const reason = viewedIds().length || wish().length
@@ -430,7 +507,7 @@
     /* 注意：拼成单行，避开气泡的 pre-wrap 把换行缩进渲染成空白 */
     return '<div class="cs-goods">' + list.map((p) => `
       <div class="cs-good">
-        <img src="${IMG}" alt="" style="object-position:center ${p.pos}%" />
+        <img src="${p.img}" alt="" style="object-position:center ${p.pos}%" />
         <div class="cs-good-info">
           <div class="cs-good-name">${esc(p.name)}</div>
           <div class="cs-good-price">¥${p.price}<del>¥${p.oldPrice}</del></div>
@@ -442,7 +519,7 @@
       </div>`).join('').replace(/\n\s*/g, '') + '</div>';
   }
 
-  function push(role, html, goods) {
+  function push(role, html, goods, extra) {
     profile.history.push({ role, html: html.replace(/<[^>]+>/g, ''), goods: (goods || []).map((g) => g.id) });
     if (profile.history.length > 30) profile.history = profile.history.slice(-30);
     saveProfile();
@@ -451,7 +528,7 @@
     wrap.innerHTML = `
       ${role === 'me' ? '' : '<span class="cs-face">峰</span>'}
       <div>
-        <div class="cs-bubble"><span class="cs-text">${html}</span>${goodsHtml(goods)}</div>
+        <div class="cs-bubble"><span class="cs-text">${html}</span>${goodsHtml(goods)}${extra || ''}</div>
         <div class="cs-time">${now()}</div>
       </div>`;
     body.appendChild(wrap);
@@ -490,7 +567,7 @@
     const delay = Math.min(1500, 420 + res.text.length * 7);
     setTimeout(() => {
       typing(false);
-      push('bot', res.text, res.goods);
+      push('bot', res.text, res.goods, res.extra);
       setChips(res.chips);
       saveProfile();
     }, delay);
@@ -523,20 +600,16 @@
     profile.greeted = true; saveProfile();
   }
 
-  /* ---------- 交互 ---------- */
-  const panel = $('csPanel'), launcher = $('csLauncher');
+  /* ---------- 交互（客服已是独立页面，toggle 改为视图切换） ---------- */
+  function ensureInit() { /* 首次进入客服页才播开场白，由 switchView('service') 调用 */
+    if (!body.dataset.init) { body.dataset.init = '1'; opening(); }
+  }
   function toggle(open) {
-    panel.classList.toggle('is-open', open);
-    launcher.classList.toggle('is-hidden', open);
-    $('csDot').classList.toggle('is-off', open);
-    panel.setAttribute('aria-hidden', String(!open));
     if (open) {
-      if (!body.dataset.init) { body.dataset.init = '1'; opening(); }
-      setTimeout(() => $('csText').focus(), 260);
+      ensureInit();
+      if (window.Shop && Shop.switchView) Shop.switchView('service');
     }
   }
-  launcher.onclick = () => toggle(true);
-  $('csClose').onclick = () => toggle(false);
   $('csReset').onclick = () => {
     body.innerHTML = ''; profile.history = []; profile.asks = 0; saveProfile();
     opening(); toast2('已开始新对话');
@@ -548,6 +621,14 @@
   body.addEventListener('click', (e) => {
     const add = e.target.closest('[data-cs-add]');
     const view = e.target.closest('[data-cs-view]');
+    const searchAll = e.target.closest('[data-cs-searchall]');
+    if (searchAll) {
+      const kw = searchAll.dataset.csSearchall;
+      if (window.Shop && Shop.searchKeyword) {
+        Shop.searchKeyword(kw); // 内部已切回首页并滚动到商品区
+      }
+      return;
+    }
     if (add) {
       const p = byId(add.dataset.csAdd);
       Shop.addToCart(p.id, p.specs[0], 1);
@@ -559,18 +640,14 @@
 
   function toast2(msg) { if (window.Shop && Shop.toast) Shop.toast(msg); }
 
-  /* 首次进入：3 秒后红点提示；购物车接近满减时主动提醒一次 */
-  setTimeout(() => { $('csDot').classList.remove('is-off'); }, 2600);
+  /* 首次进入：购物车接近满减时轻提醒（不再自动跳页，由用户点进客服页） */
   window.addEventListener('load', () => {
     const total = cartTotal(), gap = 499 - total;
     if (gap > 0 && gap <= 160) {
-      setTimeout(() => {
-        toggle(true);
-        setTimeout(() => send('帮我凑满减'), 500);
-      }, 1200);
+      setTimeout(() => toast2(`购物车再买 ¥${gap.toFixed(0)} 就能减 50，去「客服」页问问小峰怎么凑单～`), 1600);
     }
   });
 
   /* 暴露给控制台，方便调试 */
-  window.PeakAI = { answer, profile, send, toggle };
+  window.PeakAI = { answer, profile, send, toggle, ensureInit };
 })();
