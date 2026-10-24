@@ -13,6 +13,7 @@
   let nickname = null;
   let profile = { gender: '', city: '' }; // 注册资料，供收货地址预填等场景
   let pending = null; // 登录成功后要继续执行的动作（如下单结算）
+  let authExpiredAt = 0; // 401 提示节流：并发请求同时失效时只提示一次
 
   const $ = (id) => document.getElementById(id);
 
@@ -31,12 +32,29 @@
   const storedToken = () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 
   /* ---------- 接口调用 ---------- */
+  /* 会话失效：清掉本地登录态，避免“前端显示已登录、后端已经不认” */
+  function handleExpired() {
+    if (!token && !nickname) return; // 已经处理过，防止并发请求重复触发
+    clearToken();
+    nickname = null;
+    profile = { gender: '', city: '' };
+    updateUI();
+    const now = Date.now();
+    if (now - authExpiredAt > 3000) {
+      authExpiredAt = now;
+      window.Shop && Shop.toast('登录已过期，请重新登录');
+    }
+  }
+
   async function api(path, body, method) {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
     try {
       const res = await fetch(path, { method: method || 'POST', headers, body: body ? JSON.stringify(body) : undefined });
-      return await res.json();
+      const data = await res.json();
+      /* 登录接口自身的 401 是“密码错误”，不能当成会话失效去清理 */
+      if (res.status === 401 && token && path !== '/api/login') handleExpired();
+      return data;
     } catch (err) {
       return { ok: false, msg: '连不上服务器，请确认 server.py 已启动' };
     }
@@ -172,7 +190,6 @@
       return false;
     }
   };
-
   /* ---------- 启动：恢复既有会话 ---------- */
   (async function init() {
     bind();

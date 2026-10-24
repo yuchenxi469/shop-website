@@ -59,19 +59,54 @@
 .cs-typing i:nth-child(3) { animation-delay: .32s; }
 @keyframes csDot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-5px); opacity: 1; } }
 
+/* 流式输出：打字机光标 + 工具调用状态行 */
+.cs-caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--cs-brand); animation: csCaret 1s steps(1) infinite; }
+@keyframes csCaret { 50% { opacity: 0; } }
+.cs-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11.5px; color: var(--cs-muted); }
+/* display:flex 会盖掉 hidden 属性，必须显式还原，否则空状态行会占一条 */
+.cs-status[hidden] { display: none; }
+.cs-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 2px solid #9fb0c6; border-right-color: transparent; animation: csSpin .8s linear infinite; flex-shrink: 0; }
+
+/* 模型不可用回落本地规则时的小标：避免自测时把规则话术当成模型在回答 */
+.cs-offline { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 999px; background: #f1f4f8; color: #8a94a3; font-size: 11px; }
+@keyframes csSpin { to { transform: rotate(360deg); } }
+
 /* 聊天气泡内的商品卡片 */
 .cs-goods { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.cs-good { display: flex; gap: 9px; background: #fff; border: 1px solid var(--cs-line); border-radius: 12px; padding: 8px; align-items: center; transition: border-color .2s, transform .2s; }
+.cs-good { display: flex; gap: 9px; background: #fff; border: 1px solid var(--cs-line); border-radius: 12px; padding: 8px; align-items: center; cursor: pointer; transition: border-color .2s, transform .2s; }
 .cs-good:hover { border-color: var(--cs-brand); transform: translateY(-2px); }
 .cs-good img { width: 52px; height: 62px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
 .cs-good-info { flex: 1; min-width: 0; }
 .cs-good-name { font-size: 12.5px; font-weight: 600; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .cs-good-price { color: #e4393c; font-weight: 800; font-size: 14px; margin-top: 3px; }
 .cs-good-price del { color: #a8b0bb; font-weight: 400; font-size: 11px; margin-left: 5px; }
+.cs-good-why { font-size: 11px; color: #8a94a6; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cs-good-act { display: flex; flex-direction: column; gap: 5px; }
 .cs-mini-btn { font-size: 11px; padding: 5px 9px; border-radius: 7px; background: rgba(31, 111, 235, .1); color: var(--cs-brand); white-space: nowrap; transition: .18s; }
 .cs-mini-btn:hover { background: var(--cs-brand); color: #fff; }
 .cs-mini-btn.solid { background: linear-gradient(120deg, #ff7a45, #e4393c); color: #fff; }
+
+/* 思考过程：模型拆解、调工具、得结果的过程，默认展开 */
+.cs-trace { margin-top: 9px; padding: 8px 10px; border-radius: 9px; background: #f7f9fc; border: 1px dashed #cfdaea; font-size: 11.5px; }
+.cs-trace summary { cursor: pointer; color: #5b6b82; font-weight: 600; list-style: none; user-select: none; }
+.cs-trace summary::-webkit-details-marker { display: none; }
+.cs-trace summary::before { content: '▸ '; }
+.cs-trace[open] summary::before { content: '▾ '; }
+.cs-trace ol { margin: 6px 0 0; padding-left: 16px; color: #6b7688; }
+.cs-trace li { margin-top: 3px; line-height: 1.45; }
+
+/* 待确认卡：Agent 只能提议写操作，用户点了才算数 */
+.cs-confirm { margin-top: 10px; padding: 10px 11px; border-radius: 10px; background: #fffaf6; border: 1px solid #ffd9c2; }
+.cs-confirm-hd { font-size: 11px; font-weight: 600; color: #e4393c; margin-bottom: 6px; }
+.cs-confirm-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; color: #333; }
+.cs-confirm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-confirm-row b { font-size: 13px; font-weight: 600; color: #e4393c; white-space: nowrap; }
+.cs-confirm-tip { margin-top: 5px; font-size: 11px; color: #8a8f99; }
+.cs-confirm-tip b { color: #e4393c; }
+.cs-confirm-act { display: flex; gap: 6px; margin-top: 9px; }
+.cs-confirm.is-done { background: #f7f8fa; border-color: #e6e8ec; }
+.cs-confirm.is-done .cs-confirm-hd { color: #8a8f99; }
+.cs-confirm.is-done .cs-confirm-act { display: none; }
 
 /* 搜索结果·在商城查看全部 */
 .cs-searchall { display: block; width: 100%; margin-top: 9px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--cs-brand); background: rgba(31, 111, 235, .08); border: 1px dashed rgba(31, 111, 235, .4); border-radius: 10px; cursor: pointer; transition: .18s; }

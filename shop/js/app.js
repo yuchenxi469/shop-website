@@ -23,14 +23,28 @@ let PRODUCTS = [];
 
 /* ---------- 状态 ---------- */
 const PAGE_SIZE = 8;
+/* 购物车只存引用 {key, id, spec, qty}：名称/价格/图片实时取自商品目录。
+   旧版本曾把 price 快照写进 localStorage，这里统一迁移，避免调价后出现两个金额。 */
+function normalizeCart(raw) {
+  return (Array.isArray(raw) ? raw : []).filter((c) => c && c.id).map((c) => ({
+    key: c.key || c.id + '|' + (c.spec || ''),
+    id: c.id,
+    spec: c.spec || '',
+    qty: Math.min(99, Math.max(1, parseInt(c.qty, 10) || 1))
+  }));
+}
 const state = {
   cat: 'all',
   sort: 'default',
   keyword: '',
   min: null,
   max: null,
-  shown: PAGE_SIZE,
-  cart: JSON.parse(localStorage.getItem('sp_cart') || '[]'),
+  page: 1,      /* 已请求页数：分页由后端负责 */
+  total: 0,     /* 当前筛选条件下的总数（后端返回） */
+  list: [],     /* 当前已加载的商品（后端筛选/排序/分页的结果） */
+  promo: null,  /* 促销规则，来自 GET /api/promo */
+  regions: {},  /* 省市级联枚举，来自 GET /api/regions */
+  cart: normalizeCart(JSON.parse(localStorage.getItem('sp_cart') || '[]')),
   wish: JSON.parse(localStorage.getItem('sp_wish') || '[]'),
   current: null,
   curSpec: 0,
@@ -43,37 +57,84 @@ const money = (n) => '¥' + n.toFixed(2).replace(/\.00$/, '');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const starText = (r) => '★★★★★'.slice(0, Math.round(r)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(r));
 
-/* ---------- 筛选 + 排序 ---------- */
-function visibleProducts() {
-  let list = PRODUCTS.filter((p) => {
-    if (state.cat !== 'all' && p.cat !== state.cat) return false;
-    if (state.keyword) {
-      const k = state.keyword.toLowerCase();
-      if (!(p.name + p.sub + p.cat).toLowerCase().includes(k)) return false;
-    }
-    if (state.min !== null && p.price < state.min) return false;
-    if (state.max !== null && p.price > state.max) return false;
-    return true;
-  });
-  const by = {
-    priceAsc: (a, b) => a.price - b.price,
-    priceDesc: (a, b) => b.price - a.price,
-    sales: (a, b) => b.sold - a.sold,
-    rating: (a, b) => b.rating - a.rating,
-    default: (a, b) => b.hot - a.hot || a.id.localeCompare(b.id)
-  };
-  return list.sort(by[state.sort]);
+/* ---------- 商品列表：筛选/排序/分页统一由后端 /api/products 完成 ---------- */
+const SORT_MAP = { default: 'hot', priceAsc: 'price_asc', priceDesc: 'price_desc', sales: 'sales', rating: 'rating' };
+let gridSeq = 0; /* 请求序号：快速切筛选时丢弃过期响应，避免旧结果覆盖新结果 */
+
+/* 全量目录：只供详情页/AI 客服/收藏与足迹使用，与列表分页互不影响 */
+async function loadCatalog() {
+  try {
+    const res = await fetch('/api/products');
+    const data = await res.json();
+    if (data.ok) PRODUCTS = data.products || [];
+  } catch (e) {
+    console.error('商品目录加载失败，请确认 server.py 已启动', e);
+  }
+}
+
+/* 把列表接口返回的商品补进目录：全量目录加载失败时，已加载的商品仍能打开详情 */
+function mergeProducts(list) {
+  list.forEach((p) => { if (!PRODUCTS.some((x) => x.id === p.id)) PRODUCTS.push(p); });
+}
+
+/* 促销规则由后端下发，前端不定义门槛与金额 */
+async function loadPromo() {
+  try {
+    const res = await fetch('/api/promo');
+    const data = await res.json();
+    if (data.ok) state.promo = { threshold: data.threshold, off: data.off };
+  } catch (e) { /* 取不到规则时不预估优惠，各处会提示“以结算页为准” */ }
+}
+
+/* 省市级联枚举由后端下发，前端不维护城市表 */
+async function loadRegions() {
+  try {
+    const res = await fetch('/api/regions');
+    const data = await res.json();
+    if (data.ok && data.regions) state.regions = data.regions;
+  } catch (e) { /* 取不到时下单弹窗会提示地址数据加载失败 */ }
+}
+/* 根据城市反查所属省份（用于注册资料预填收货地址） */
+function provOfCity(city) {
+  return Object.keys(state.regions).find((p) => state.regions[p].includes(city)) || '';
+}
+
+async function loadGrid(reset) {
+  if (reset) { state.page = 1; state.list = []; }
+  const seq = ++gridSeq;
+  const qs = new URLSearchParams({ sort: SORT_MAP[state.sort] || 'hot', page: String(state.page), pageSize: String(PAGE_SIZE) });
+  if (state.keyword) qs.set('q', state.keyword);
+  if (state.cat !== 'all') qs.set('category', state.cat);
+  if (state.min !== null) qs.set('min', String(state.min));
+  if (state.max !== null) qs.set('max', String(state.max));
+
+  let data;
+  try {
+    const res = await fetch('/api/products?' + qs.toString());
+    data = await res.json();
+  } catch (e) {
+    data = { ok: false };
+  }
+  if (seq !== gridSeq) return; /* 已有更新的请求，本次结果作废 */
+  if (!data.ok) {
+    $('resultCount').textContent = '商品加载失败，请确认 server.py 已启动';
+    if (reset) { state.total = 0; renderGrid(); }
+    return;
+  }
+  state.total = data.total || 0;
+  state.list = reset ? (data.products || []) : state.list.concat(data.products || []);
+  mergeProducts(data.products || []);
+  renderGrid();
 }
 
 /* ---------- 渲染商品网格 ---------- */
 function renderGrid() {
-  const list = visibleProducts();
-  const slice = list.slice(0, state.shown);
-  $('resultCount').textContent = `共 ${list.length} 件商品${state.cat === 'all' ? '' : ' · ' + state.cat}`;
-  $('emptyTip').hidden = list.length !== 0;
-  $('loadMoreBtn').parentElement.hidden = slice.length >= list.length;
+  const list = state.list;
+  $('resultCount').textContent = `共 ${state.total} 件商品${state.cat === 'all' ? '' : ' · ' + state.cat}`;
+  $('emptyTip').hidden = state.total !== 0;
+  $('loadMoreBtn').parentElement.hidden = list.length >= state.total;
 
-  $('productGrid').innerHTML = slice.map((p, i) => {
+  $('productGrid').innerHTML = list.map((p, i) => {
     const inWish = state.wish.includes(p.id);
     return `
     <article class="card" style="animation-delay:${Math.min(i, 8) * 40}ms">
@@ -110,23 +171,52 @@ function persist() {
   localStorage.setItem('sp_wish', JSON.stringify(state.wish));
 }
 function cartCount() { return state.cart.reduce((s, i) => s + i.qty, 0); }
-function cartAmount() { return state.cart.reduce((s, i) => s + i.price * i.qty, 0); }
+/* 购物车项 -> 当前商品（可能已下架） */
+const productOf = (c) => PRODUCTS.find((p) => p.id === c.id);
+function cartAmount() {
+  return state.cart.reduce((s, c) => { const p = productOf(c); return s + (p ? p.price * c.qty : 0); }, 0);
+}
+/* 优惠预估：门槛与金额来自后端 /api/promo，前端不定义规则；规则未加载时不预估 */
+function calcDiscount(subtotal) {
+  const pr = state.promo;
+  return pr && subtotal >= pr.threshold ? pr.off : 0;
+}
 
 function addToCart(id, spec, qty) {
   const p = PRODUCTS.find((x) => x.id === id);
+  if (!p) return toast('商品信息加载中，请稍后再试');
   const key = id + '|' + spec;
   const hit = state.cart.find((c) => c.key === key);
-  if (hit) hit.qty += qty;
-  else state.cart.push({ key, id, name: p.name, spec, price: p.price, qty, img: p.img });
+  if (hit) hit.qty = Math.min(99, hit.qty + qty);
+  else state.cart.push({ key, id, spec, qty: Math.min(99, Math.max(1, qty)) });
   persist();
   renderCart();
   toast(`已加入购物车 · ${p.name.slice(0, 12)}…`);
   bump($('cartBadge'));
 }
 
+/* 供 AI 客服确认卡复用：改数量 / 移出都走同一套持久化与重绘，避免两套状态 */
+function setCartQty(key, qty) {
+  const hit = state.cart.find((c) => c.key === key);
+  if (!hit) return false;
+  hit.qty = Math.min(99, Math.max(1, parseInt(qty, 10) || 1));
+  persist();
+  renderCart();
+  return true;
+}
+
+function removeFromCart(key) {
+  const before = state.cart.length;
+  state.cart = state.cart.filter((c) => c.key !== key);
+  if (state.cart.length === before) return false;
+  persist();
+  renderCart();
+  return true;
+}
+
 function renderCart() {
   const total = cartAmount();
-  const discount = total >= 499 ? 50 : 0;
+  const discount = calcDiscount(total);
   $('cartBadge').textContent = cartCount();
   $('wishBadge').textContent = state.wish.length;
   const tb = $('tabCartBadge');
@@ -138,23 +228,45 @@ function renderCart() {
 
   /* 侧边抽屉与整页购物车两个容器同步渲染 */
   const html = state.cart.length
-    ? state.cart.map((c) => `
+    ? state.cart.map((c) => {
+      const p = productOf(c);
+      if (!p) {
+        /* 商品已下架：保留一行占位，让用户能手动移除，不计入金额 */
+        return `
       <div class="cart-item">
-        <img src="${c.img}" alt="" data-detail="${c.id}" style="object-position:center 40%;cursor:pointer" />
         <div class="ci-info">
-          <div class="ci-name" data-detail="${c.id}" style="cursor:pointer">${c.name}</div>
-          <div class="ci-spec">规格：${c.spec}</div>
+          <div class="ci-name">商品已下架</div>
+          <div class="ci-spec">该商品已停止销售，请删除后结算</div>
+          <div class="ci-bottom"><span class="ci-price">—</span></div>
+          <button class="ci-del" data-del="${c.key}">删除商品</button>
+        </div>
+      </div>`;
+      }
+      return `
+      <div class="cart-item">
+        <img src="${p.img}" alt="" data-detail="${p.id}" style="object-position:center 40%;cursor:pointer" />
+        <div class="ci-info">
+          <div class="ci-name" data-detail="${p.id}" style="cursor:pointer">${esc(p.name)}</div>
+          <div class="ci-spec">规格：${esc(c.spec)}</div>
           <div class="ci-bottom">
-            <span class="ci-price">${money(c.price)}</span>
+            <span class="ci-price">${money(p.price)}</span>
             <span class="qty-ctrl">
               <button data-minus="${c.key}">−</button><span>${c.qty}</span><button data-plus="${c.key}">＋</button>
             </span>
           </div>
           <button class="ci-del" data-del="${c.key}">删除商品</button>
         </div>
-      </div>`).join('')
+      </div>`;
+    }).join('')
     : '<p class="cart-empty">购物车还是空的，去挑一件雪山好物吧 🏔️</p>';
   document.querySelectorAll('.cart-list-host').forEach((el) => { el.innerHTML = html; });
+  /* 促销文案也由后端规则生成：HTML 里不再保留第二份门槛与金额 */
+  document.querySelectorAll('.js-promo-text').forEach((el) => {
+    el.textContent = state.promo ? `满 ${state.promo.threshold} 元立减 ${state.promo.off} 元` : '优惠以结算页为准';
+  });
+  document.querySelectorAll('.js-promo-hot').forEach((el) => {
+    el.textContent = state.promo ? `🔥 焕新季 · 满 ${state.promo.threshold} 减 ${state.promo.off}` : '🔥 焕新季';
+  });
 }
 
 /* ---------- 详情弹窗 ---------- */
@@ -365,7 +477,7 @@ document.addEventListener('click', (e) => {
     toast(i > -1 ? '已取消收藏' : '已加入收藏 ⭐');
     e.stopPropagation();
   }
-  if (t.dataset.plus) { state.cart.find(c => c.key === t.dataset.plus).qty++; persist(); renderCart(); }
+  if (t.dataset.plus) { const c = state.cart.find((x) => x.key === t.dataset.plus); c.qty = Math.min(99, c.qty + 1); persist(); renderCart(); }
   if (t.dataset.minus) {
     const c = state.cart.find(x => x.key === t.dataset.minus);
     c.qty--; if (c.qty <= 0) state.cart = state.cart.filter(x => x !== c);
@@ -377,7 +489,7 @@ document.addEventListener('click', (e) => {
     $('mSpecs').querySelectorAll('.spec-btn').forEach((b, i) => b.classList.toggle('is-active', i === state.curSpec));
   }
   if (t.dataset.step && t.closest('.qty-ctrl')) {
-    state.curQty = Math.max(1, state.curQty + (+t.dataset.step));
+    state.curQty = Math.min(99, Math.max(1, state.curQty + (+t.dataset.step)));
     $('mQty').textContent = state.curQty;
   }
 });
@@ -444,16 +556,7 @@ document.querySelectorAll('.js-checkout').forEach((b) => { b.onclick = () => {
 /* ---------- 订单与物流 ---------- */
 const ORD_STATUS = ['待发货', '已揽收', '运输中', '到达目的城市', '派送中', '已签收'];
 const ORD_ST_CLS = ['st0', 'st1', 'st2', 'st2', 'st3', 'st4'];
-/* 简化版省→市映射：同时用于收货地址级联选择与物流路由生成 */
-const REGIONS = {
-  '浙江': ['杭州', '宁波', '温州', '嘉兴'], '江苏': ['南京', '苏州', '无锡', '南通'],
-  '上海': ['上海'], '北京': ['北京'], '广东': ['广州', '深圳', '东莞', '佛山'],
-  '四川': ['成都', '绵阳', '宜宾'], '湖北': ['武汉', '宜昌', '襄阳'], '山东': ['济南', '青岛', '烟台'],
-  '福建': ['福州', '厦门', '泉州'], '河南': ['郑州', '洛阳', '南阳'], '陕西': ['西安', '咸阳', '宝鸡'],
-  '辽宁': ['沈阳', '大连'], '重庆': ['重庆'], '云南': ['昆明', '丽江', '大理'], '新疆': ['乌鲁木齐', '库尔勒', '喀什'],
-};
-const CITY_PROV = {};
-Object.entries(REGIONS).forEach(([prov, cities]) => cities.forEach((c) => { CITY_PROV[c] = prov; }));
+/* 省→市枚举由后端 /api/regions 下发，前端不再维护城市表 */
 function fmtT(ms) {
   const d = new Date(ms);
   const p = (n) => String(n).padStart(2, '0');
@@ -461,6 +564,11 @@ function fmtT(ms) {
 }
 /* ---------- 订单数据：已迁至后端（/api/orders），本地只缓存列表用于渲染 ---------- */
 let ordersCache = [];
+/* 一次结算会话的幂等键：打开确认弹窗时生成，提交成功才清空；
+   失败重试、关闭后重开都复用同一 id，避免“服务端已建单但响应丢失”时重复下单 */
+let pendingClientOrderId = null;
+let previewSeq = 0; /* 试算请求序号：后发请求覆盖先发结果，避免旧响应回写新弹窗 */
+const newClientOrderId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 async function fetchOrders() {
   if (!(window.Auth && Auth.isLoggedIn())) { ordersCache = []; return; }
   try {
@@ -470,19 +578,39 @@ async function fetchOrders() {
 }
 function fillRegionSelects(provName, cityName) {
   const sel = $('adProv'), cit = $('adCity');
-  sel.innerHTML = Object.keys(REGIONS).map((p) => `<option${p === provName ? ' selected' : ''}>${p}</option>`).join('');
-  const fill = () => { cit.innerHTML = REGIONS[sel.value].map((c) => `<option${c === cityName ? ' selected' : ''}>${c}</option>`).join(''); };
+  const provs = Object.keys(state.regions);
+  if (!provs.length) { /* 枚举未加载：不编造选项，也不让页面报错 */
+    sel.innerHTML = '<option>地址数据加载失败</option>';
+    cit.innerHTML = '';
+    return;
+  }
+  const prov = provs.includes(provName) ? provName : provs[0];
+  sel.innerHTML = provs.map((p) => `<option${p === prov ? ' selected' : ''}>${p}</option>`).join('');
+  const fill = () => {
+    const cities = state.regions[sel.value] || [];
+    const city = cities.includes(cityName) ? cityName : cities[0];
+    cit.innerHTML = cities.map((c) => `<option${c === city ? ' selected' : ''}>${c}</option>`).join('');
+  };
   fill();
   sel.onchange = fill;
 }
 function setOrderErr(msg) { $('orderErr').textContent = msg || ''; }
-async function openOrderModal() {
-  const total = cartAmount();
-  const discount = total >= 499 ? 50 : 0;
-  $('orderItems').innerHTML = state.cart.map((c) => {
-    const p = PRODUCTS.find((x) => x.id === c.id) || {};
-    return `<div class="oi-row"><img src="${c.img}" alt="" style="object-position:center ${p.pos || 50}%" /><span class="oi-name">${esc(c.name)}</span><span class="oi-spec">${esc(c.spec || '')} × ${c.qty}</span><span class="oi-price">${money(c.price * c.qty)}</span></div>`;
+/* 订单商品行：本地购物车项与后端试算返回项结构兼容（id / productId） */
+function orderItemsHtml(items) {
+  return items.map((it) => {
+    const p = PRODUCTS.find((x) => x.id === (it.productId || it.id)) || {};
+    return `<div class="oi-row"><img src="${it.img}" alt="" style="object-position:center ${p.pos || 50}%" /><span class="oi-name">${esc(it.name)}</span><span class="oi-spec">${esc(it.spec || '')} × ${it.qty}</span><span class="oi-price">${money(it.price * it.qty)}</span></div>`;
   }).join('');
+}
+async function openOrderModal() {
+  if (!pendingClientOrderId) pendingClientOrderId = newClientOrderId();
+  const total = cartAmount();
+  const discount = calcDiscount(total);
+  /* 占位行从商品目录补全名称/价格：购物车只存 id/spec/qty */
+  $('orderItems').innerHTML = orderItemsHtml(state.cart.map((c) => {
+    const p = productOf(c);
+    return { name: p ? p.name : '商品已下架', spec: c.spec, qty: c.qty, price: p ? p.price : 0, img: p ? p.img : '' };
+  }));
   $('oSub').textContent = money(total);
   $('oOff').textContent = '-' + money(discount);
   $('oGrand').textContent = money(total - discount);
@@ -495,16 +623,36 @@ async function openOrderModal() {
     } catch (e) { /* 接口异常用本地兑底 */ }
   }
   const prof = (window.Auth && Auth.profile) || {};
-  const prov0 = (saved && saved.prov) || CITY_PROV[prof.city] || '浙江';
-  const city0 = (saved && saved.city) || (CITY_PROV[prof.city] ? prof.city : '杭州');
+  const profProv = provOfCity(prof.city);
+  const prov0 = (saved && saved.prov) || profProv || Object.keys(state.regions)[0] || '';
+  const city0 = (saved && saved.city) || (profProv ? prof.city : '');
   $('adName').value = (saved && saved.name) || (window.Auth && Auth.nickname) || '';
   $('adPhone').value = (saved && saved.phone) || '';
   $('adDetail').value = (saved && saved.detail) || '';
   fillRegionSelects(prov0, city0);
   setOrderErr('');
+  $('submitOrderBtn').disabled = false;
   $('orderModal').classList.add('is-open');
   $('orderModal').setAttribute('aria-hidden', 'false');
   setTimeout(() => ($('adDetail').value ? $('adName') : $('adDetail')).focus(), 150);
+  /* 用服务端权威金额覆盖本地估算：商品调价或优惠规则变更时，确认页仍与实付一致 */
+  const seq = ++previewSeq;
+  Auth.api('/api/orders/preview', {
+    items: state.cart.map((c) => ({ productId: c.id, spec: c.spec, qty: c.qty })),
+  }, 'POST').then((priced) => {
+    if (seq !== previewSeq || !$('orderModal').classList.contains('is-open')) return;
+    if (!priced.ok) {
+      /* 试算失败时禁止提交：页面上显示的只是本地预估，可能已与实付不符 */
+      setOrderErr(priced.msg || '金额试算失败，请稍后重试');
+      $('submitOrderBtn').disabled = true;
+      return;
+    }
+    $('submitOrderBtn').disabled = false;
+    $('orderItems').innerHTML = orderItemsHtml(priced.rows);
+    $('oSub').textContent = money(priced.subtotal);
+    $('oOff').textContent = '-' + money(priced.discount);
+    $('oGrand').textContent = money(priced.amount);
+  });
 }
 function closeOrderModal() {
   if (document.activeElement && $('orderModal').contains(document.activeElement)) document.activeElement.blur();
@@ -528,18 +676,21 @@ $('submitOrderBtn').onclick = async () => {
   try {
     /* 只传商品选择与地址，价格/优惠/订单号/物流轨迹由服务端生成；clientOrderId 防连点重复下单 */
     const data = await Auth.api('/api/orders', {
-      clientOrderId: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+      clientOrderId: pendingClientOrderId || (pendingClientOrderId = newClientOrderId()),
       items: state.cart.map((c) => ({ productId: c.id, spec: c.spec, qty: c.qty })),
       addr,
       saveAddr: $('adSave').checked,
     }, 'POST');
     if (!data.ok) return setOrderErr(data.msg || '下单失败，请重试');
     if ($('adSave').checked) localStorage.setItem('sp_addr', JSON.stringify(addr)); /* 本地留一份作离线兑底 */
-    ordersCache.unshift(data.order);
+    pendingClientOrderId = null; /* 成功后才换新 id；失败重试、关闭重开都复用，避免重复下单 */
+    if (!ordersCache.some((o) => o.id === data.order.id)) ordersCache.unshift(data.order);
     state.cart = []; persist(); renderCart();
     closeOrderModal();
     openCart(false);
     toast(`下单成功：${data.order.count} 件，实付 ${money(data.order.amount)}`);
+    /* 广播给客服模块：把订单号回填进对话，Agent 才能「知道」这单的结果 */
+    document.dispatchEvent(new CustomEvent('shop:order', { detail: { order: data.order } }));
     setTimeout(() => switchView('done'), 400);
   } catch (e) {
     setOrderErr('网络异常，下单失败，请重试');
@@ -619,8 +770,8 @@ document.querySelectorAll('.cat-link').forEach((btn) => {
     switchView('home');
     document.querySelectorAll('.cat-link').forEach((b) => b.classList.remove('is-active'));
     btn.classList.add('is-active');
-    state.cat = btn.dataset.cat; state.shown = PAGE_SIZE;
-    renderGrid();
+    state.cat = btn.dataset.cat;
+    loadGrid(true);
     document.getElementById('goods').scrollIntoView({ behavior: 'smooth' });
   };
 });
@@ -630,12 +781,12 @@ $('sortGroup').onclick = (e) => {
   const b = e.target.closest('.sort-btn'); if (!b) return;
   $('sortGroup').querySelectorAll('.sort-btn').forEach((x) => x.classList.remove('is-active'));
   b.classList.add('is-active');
-  state.sort = b.dataset.sort; state.shown = PAGE_SIZE;
-  renderGrid();
+  state.sort = b.dataset.sort;
+  loadGrid(true);
 };
 
 /* 搜索 + 价格区间 */
-function applyFilter() { state.shown = PAGE_SIZE; renderGrid(); }
+function applyFilter() { loadGrid(true); }
 /* 平滑滚动到商品区（配合 CSS scroll-padding-top 避开吸顶导航）；
    延迟等切页 fadeUp 动画（280ms）结束，避免动画中计算目标位置导致过冲 */
 function scrollToGoods() {
@@ -654,7 +805,11 @@ $('rangeBtn').onclick = () => {
 };
 
 /* 加载更多 */
-$('loadMoreBtn').onclick = () => { state.shown += PAGE_SIZE; renderGrid(); };
+$('loadMoreBtn').onclick = () => {
+  if (state.list.length >= state.total) return;
+  state.page += 1;
+  loadGrid(false);
+};
 
 /* ---------- 底部导航与视图路由 ---------- */
 const VIEWS = ['home', 'service', 'cart', 'me', 'done'];
@@ -757,6 +912,8 @@ window.Shop = {
   get products() { return PRODUCTS; },
   state,
   addToCart,
+  setCartQty,
+  removeFromCart,
   openDetail,
   openCart,
   money,
@@ -765,30 +922,28 @@ window.Shop = {
   renderMe,
   filterByCategory(cat) {
     switchView('home');
-    state.cat = cat; state.keyword = ''; state.shown = PAGE_SIZE;
+    state.cat = cat; state.keyword = '';
     document.querySelectorAll('.cat-link').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === cat));
-    renderGrid();
+    loadGrid(true);
     setTimeout(() => document.getElementById('goods').scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
   },
   searchKeyword(kw) {
     switchView('home');
-    state.keyword = kw; state.cat = 'all'; state.shown = PAGE_SIZE;
+    state.keyword = kw; state.cat = 'all';
     $('searchInput').value = kw;
     document.querySelectorAll('.cat-link').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === 'all'));
-    renderGrid();
+    loadGrid(true);
     setTimeout(() => document.getElementById('goods').scrollIntoView({ behavior: 'smooth', block: 'start' }), 320);
   },
   viewed: () => JSON.parse(localStorage.getItem('sp_viewed') || '[]')
 };
 
-/* ---------- 启动：先从后端拉取商品，再渲染 ---------- */
+/* ---------- 启动：促销规则 → 商品目录 → 首屏列表 ---------- */
 async function boot() {
-  try {
-    const res = await fetch('/api/products');
-    const data = await res.json();
-    if (data.ok) PRODUCTS = data.products || [];
-  } catch (e) { console.error('商品加载失败，请确认 server.py 已启动', e); }
-  renderGrid();
+  await loadPromo();      /* 促销规则：购物车与顶部文案据此生成 */
+  await loadRegions();    /* 省市级联：收货地址下拉框的枚举来源 */
+  await loadCatalog();    /* 全量目录：供详情/AI 客服/收藏与足迹使用 */
+  await loadGrid(true);   /* 首屏列表：筛选/排序/分页全部由后端返回 */
   renderCart();
   /* 稍等会话恢复（auth.js 的 /api/me）完成，保证刷新直进 #done/#me 时订单缓存就绪 */
   await new Promise((r) => setTimeout(r, 300));
