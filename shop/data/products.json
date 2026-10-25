@@ -1,0 +1,529 @@
+[
+  {
+    "id": "SP3001",
+    "cat": "服饰鞋包",
+    "name": "湖人配色复古篮球鞋 中帮实战款",
+    "sub": "真皮鞋面 · 后跟可视化气垫",
+    "specs": [
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "img": "assets/products/shoe-lakers.jpg",
+    "pos": 50,
+    "price": 1199,
+    "oldPrice": 1599,
+    "rating": 4.8,
+    "sold": 6079,
+    "stock": 131,
+    "hot": false,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP3002",
+    "cat": "服饰鞋包",
+    "name": "冰蓝渐变缓震跑步鞋 轻盈透气款",
+    "sub": "全掌回弹中底 · 飞织鞋面",
+    "specs": [
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43"
+    ],
+    "img": "assets/products/shoe-runner.jpg",
+    "pos": 50,
+    "price": 599,
+    "oldPrice": 799,
+    "rating": 4.4,
+    "sold": 3527,
+    "stock": 25,
+    "hot": true,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP3003",
+    "cat": "服饰鞋包",
+    "name": "专业实战篮球鞋 低帮包裹款",
+    "sub": "抗扭中底 · 全掌缓震科技",
+    "specs": [
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44"
+    ],
+    "img": "assets/products/shoe-basketball.jpg",
+    "pos": 50,
+    "price": 699,
+    "oldPrice": 899,
+    "rating": 4.4,
+    "sold": 5891,
+    "stock": 92,
+    "hot": false,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP3004",
+    "cat": "服饰鞋包",
+    "name": "白色潮流中帮篮球鞋 联名限量款",
+    "sub": "炫彩电镀大底 · 高帮护踝",
+    "specs": [
+      "40",
+      "41",
+      "42",
+      "43",
+      "44",
+      "45"
+    ],
+    "img": "assets/products/shoe-hightop.jpg",
+    "pos": 50,
+    "price": 320,
+    "oldPrice": 386,
+    "rating": 4.9,
+    "sold": 1998,
+    "stock": 128,
+    "hot": true,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP3005",
+    "cat": "服饰鞋包",
+    "name": "经典低帮休闲运动鞋 米白生胶底",
+    "sub": "Air 气垫 · 复古百搭",
+    "specs": [
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43"
+    ],
+    "img": "assets/products/shoe-air.jpg",
+    "pos": 50,
+    "price": 182,
+    "oldPrice": 290,
+    "rating": 3.9,
+    "sold": 1604,
+    "stock": 137,
+    "hot": false,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP1001",
+    "cat": "户外装备",
+    "name": "重装徒步双肩背包 大容量防雨款",
+    "sub": "可调背负系统 · 内置水袋仓",
+    "specs": [
+      "35L",
+      "45L",
+      "60L"
+    ],
+    "img": "assets/products/pack-gregory.jpg",
+    "pos": 50,
+    "price": 1099,
+    "oldPrice": 1399,
+    "rating": 4,
+    "sold": 2472,
+    "stock": 170,
+    "hot": false,
+    "brand": "Camel"
+  },
+  {
+    "id": "SP1002",
+    "cat": "户外装备",
+    "name": "碳纤维超轻登山杖 软木握柄款",
+    "sub": "三节折叠 · 附雪托泥托",
+    "specs": [
+      "单支装",
+      "双支装"
+    ],
+    "img": "assets/products/pole-nomkaba.jpg",
+    "pos": 50,
+    "price": 329,
+    "oldPrice": 429,
+    "rating": 3.7,
+    "sold": 6969,
+    "stock": 239,
+    "hot": false,
+    "brand": "Nomkaba"
+  },
+  {
+    "id": "SP1003",
+    "cat": "户外装备",
+    "name": "轻量通勤登山包 人体工学背负",
+    "sub": "防泼水面料 · 多仓分区",
+    "specs": [
+      "20L",
+      "30L",
+      "40L"
+    ],
+    "img": "assets/products/pack-camel.jpg",
+    "pos": 40,
+    "price": 499,
+    "oldPrice": 659,
+    "rating": 3.7,
+    "sold": 4124,
+    "stock": 30,
+    "hot": true,
+    "brand": "Gregory"
+  },
+  {
+    "id": "SP2001",
+    "cat": "数码影音",
+    "name": "便携卡片机 蔡司变焦 Vlog 套装",
+    "sub": "1 英寸传感器 · 防风麦克风",
+    "specs": [
+      "标准版",
+      "Vlog 套装"
+    ],
+    "img": "assets/products/cam-sony.jpg",
+    "pos": 50,
+    "price": 1299,
+    "oldPrice": 1799,
+    "rating": 4.2,
+    "sold": 907,
+    "stock": 37,
+    "hot": true,
+    "brand": "Sony"
+  },
+  {
+    "id": "SP2002",
+    "cat": "数码影音",
+    "name": "旗舰智能手机 铛金属三摄版",
+    "sub": " pro 级影像 · 长续航",
+    "specs": [
+      "128GB",
+      "256GB",
+      "512GB",
+      "1TB"
+    ],
+    "img": "assets/products/phone-iphone.jpg",
+    "pos": 50,
+    "price": 3299,
+    "oldPrice": 3999,
+    "rating": 3.8,
+    "sold": 6047,
+    "stock": 162,
+    "hot": false,
+    "brand": "iPhone"
+  },
+  {
+    "id": "SP2003",
+    "cat": "数码影音",
+    "name": "性能旗舰手机 赛道版长焦款",
+    "sub": "徕卡光学 · 百瓦快充",
+    "specs": [
+      "12+256GB",
+      "16+512GB",
+      "16+1TB"
+    ],
+    "img": "assets/products/phone-iqoo.jpg",
+    "pos": 50,
+    "price": 2599,
+    "oldPrice": 3199,
+    "rating": 4,
+    "sold": 3618,
+    "stock": 115,
+    "hot": false,
+    "brand": "iQOO"
+  },
+  {
+    "id": "SP2004",
+    "cat": "数码影音",
+    "name": "头戴式主动降噪耳机 HiFi 无线",
+    "sub": "混合降噪 · 60 小时续航",
+    "specs": [
+      "奶白",
+      "深空灰"
+    ],
+    "img": "assets/products/headphone-ikf.jpg",
+    "pos": 50,
+    "price": 899,
+    "oldPrice": 1099,
+    "rating": 3.7,
+    "sold": 8525,
+    "stock": 166,
+    "hot": false,
+    "brand": "iKF"
+  },
+  {
+    "id": "SP2005",
+    "cat": "数码影音",
+    "name": "真无线蓝牙耳机 入耳降噪款",
+    "sub": "主动降噪 · 低延迟游戏模式",
+    "specs": [
+      "标准版",
+      "降噪版"
+    ],
+    "img": "assets/products/earbuds-nank.jpg",
+    "pos": 50,
+    "price": 599,
+    "oldPrice": 799,
+    "rating": 4.5,
+    "sold": 5610,
+    "stock": 154,
+    "hot": false,
+    "brand": "南卡"
+  },
+  {
+    "id": "SP2006",
+    "cat": "数码影音",
+    "name": "磁吸无线移动电源 便携快充",
+    "sub": "10000mAh · 磁吸无线充",
+    "specs": [
+      "10000mAh",
+      "20000mAh"
+    ],
+    "img": "assets/products/powerbank.jpg",
+    "pos": 50,
+    "price": 119.9,
+    "oldPrice": 182,
+    "rating": 4.1,
+    "sold": 9067,
+    "stock": 123,
+    "hot": false,
+    "brand": "通用"
+  },
+  {
+    "id": "SP5001",
+    "cat": "电玩周边",
+    "name": "次世代无线游戏手柄 自适应扳机",
+    "sub": "触觉反馈 · 长续航",
+    "specs": [
+      "白色",
+      "黑色"
+    ],
+    "img": "assets/products/pad-ps5.jpg",
+    "pos": 50,
+    "price": 549,
+    "oldPrice": 699,
+    "rating": 4,
+    "sold": 8233,
+    "stock": 41,
+    "hot": false,
+    "brand": "Sony"
+  },
+  {
+    "id": "SP5002",
+    "cat": "电玩周边",
+    "name": "透明电竞游戏手柄 机械体感",
+    "sub": "宏编程按键 · 全平台兼容",
+    "specs": [
+      "单只",
+      "双只套装"
+    ],
+    "img": "assets/products/pad-white.jpg",
+    "pos": 50,
+    "price": 299,
+    "oldPrice": 399,
+    "rating": 3.6,
+    "sold": 6283,
+    "stock": 164,
+    "hot": false,
+    "brand": "Razer"
+  },
+  {
+    "id": "SP5003",
+    "cat": "电玩周边",
+    "name": "专业电竞游戏手柄 低延迟无线",
+    "sub": "机械微动 · 背键编程",
+    "specs": [
+      "标准版",
+      "精英版"
+    ],
+    "img": "assets/products/pad-razer.jpg",
+    "pos": 50,
+    "price": 459,
+    "oldPrice": 599,
+    "rating": 4.3,
+    "sold": 2884,
+    "stock": 178,
+    "hot": true,
+    "brand": "Razer"
+  },
+  {
+    "id": "SP6001",
+    "cat": "生鲜果蔬",
+    "name": "四川安岳黄柠檬 皮薄多汁",
+    "sub": "当季现摘 · 净重 5 斤",
+    "specs": [
+      "5 斤装",
+      "9 斤装"
+    ],
+    "img": "assets/products/fruit-lemon.jpg",
+    "pos": 50,
+    "price": 29.9,
+    "oldPrice": 39.9,
+    "rating": 4.2,
+    "sold": 7833,
+    "stock": 193,
+    "hot": true,
+    "brand": ""
+  },
+  {
+    "id": "SP6002",
+    "cat": "生鲜果蔬",
+    "name": "广西耙耙柑 爆甜带叶鲜果",
+    "sub": "果肉细嫩 · 净重 5 斤",
+    "specs": [
+      "5 斤装",
+      "9 斤装"
+    ],
+    "img": "assets/products/fruit-mandarin.jpg",
+    "pos": 50,
+    "price": 49.9,
+    "oldPrice": 69.9,
+    "rating": 4.4,
+    "sold": 7310,
+    "stock": 254,
+    "hot": false,
+    "brand": ""
+  },
+  {
+    "id": "SP6003",
+    "cat": "生鲜果蔬",
+    "name": "丹东红颜草莓 头茬鲜果",
+    "sub": "冷链直发 · 香甜爆汁",
+    "specs": [
+      "中盒 1 斤",
+      "大盒 2 斤"
+    ],
+    "img": "assets/products/fruit-strawberry.jpg",
+    "pos": 50,
+    "price": 79.9,
+    "oldPrice": 109,
+    "rating": 4.4,
+    "sold": 9169,
+    "stock": 166,
+    "hot": true,
+    "brand": ""
+  },
+  {
+    "id": "SP6004",
+    "cat": "生鲜果蔬",
+    "name": "烟台红富士苹果 脆甜带糖心",
+    "sub": "果园直供 · 净重 5 斤",
+    "specs": [
+      "5 斤装",
+      "10 斤装"
+    ],
+    "img": "assets/products/fruit-apple.jpg",
+    "pos": 50,
+    "price": 39.9,
+    "oldPrice": 55.9,
+    "rating": 4.8,
+    "sold": 913,
+    "stock": 259,
+    "hot": true,
+    "brand": ""
+  },
+  {
+    "id": "SP7001",
+    "cat": "数码影音",
+    "brand": "iKF",
+    "name": "头戴式蓝牙耳机 青春降噪款",
+    "sub": "轻量头戴 · 40 小时续航",
+    "price": 399,
+    "oldPrice": 499,
+    "rating": 4.5,
+    "sold": 6820,
+    "hot": false,
+    "stock": 186,
+    "img": "assets/products/earbuds-ikf.jpg",
+    "pos": 50,
+    "specs": [
+      "白色",
+      "黑色"
+    ]
+  },
+  {
+    "id": "SP7002",
+    "cat": "电玩周边",
+    "brand": "iKF",
+    "name": "机械键盘 98 键 茶轴",
+    "sub": "PBT 键帽 · 三模连接",
+    "price": 459,
+    "oldPrice": 599,
+    "rating": 4.6,
+    "sold": 3140,
+    "hot": true,
+    "stock": 96,
+    "img": "assets/products/kb-ikf.jpg",
+    "pos": 50,
+    "specs": [
+      "米白",
+      "墨绿"
+    ]
+  },
+  {
+    "id": "SP7003",
+    "cat": "电玩周边",
+    "brand": "Razer",
+    "name": "机械键盘 电竞款 RGB",
+    "sub": "热插拔轴 · 全键无冲",
+    "price": 699,
+    "oldPrice": 899,
+    "rating": 4.7,
+    "sold": 2470,
+    "hot": false,
+    "stock": 140,
+    "img": "assets/products/kb-razer.jpg",
+    "pos": 50,
+    "specs": [
+      "黑色",
+      "白色"
+    ]
+  },
+  {
+    "id": "SP3006",
+    "cat": "服饰鞋包",
+    "name": "白色轻量缓震跑鞋 红标款",
+    "sub": "工程网布鞋面 · 全掌回弹中底",
+    "specs": [
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43"
+    ],
+    "img": "assets/products/shoe-white-runner.jpg",
+    "pos": 50,
+    "price": 499,
+    "oldPrice": 699,
+    "rating": 4.6,
+    "sold": 1832,
+    "stock": 88,
+    "hot": true,
+    "brand": "Nike"
+  },
+  {
+    "id": "SP3007",
+    "cat": "服饰鞋包",
+    "name": "灰白缓震跑步鞋 透气网面款",
+    "sub": "加厚缓震中底 · 轻量网面",
+    "specs": [
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43"
+    ],
+    "img": "assets/products/shoe-comfiride.jpg",
+    "pos": 50,
+    "price": 429,
+    "oldPrice": 599,
+    "rating": 4.3,
+    "sold": 964,
+    "stock": 120,
+    "hot": false,
+    "brand": "Nike"
+  }
+]

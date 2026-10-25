@@ -2,7 +2,10 @@
 考试1/
 
 # 后端运行时业务数据（用户哈希/会话/订单/地址等隐私），禁止入库
-shop/data/
+# 用 data/* 而不是 data/：整目录被忽略时 ! 例外不生效，商品目录需要单独放开
+shop/data/*
+# 商品目录是内容素材、不含隐私；入库后别人 clone 下来首页才有货，能跑完整流程
+!shop/data/products.json
 
 # macOS 元数据
 .DS_Store
