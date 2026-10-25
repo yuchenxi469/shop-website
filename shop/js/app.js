@@ -182,16 +182,27 @@ function calcDiscount(subtotal) {
   return pr && subtotal >= pr.threshold ? pr.off : 0;
 }
 
+/* 库存上限：库存是商品级的（不按规格拆），前端只做提前提示与封顶，权威判断仍在后端 */
+const stockLeft = (p) => Math.max(0, parseInt(p && p.stock, 10) || 0);
+const qtyCap = (p) => Math.min(99, stockLeft(p));
+
 function addToCart(id, spec, qty) {
   const p = PRODUCTS.find((x) => x.id === id);
   if (!p) return toast('商品信息加载中，请稍后再试');
+  const cap = qtyCap(p);
+  if (cap < 1) return toast(`「${p.name.slice(0, 12)}…」暂时没货`);
   const key = id + '|' + spec;
   const hit = state.cart.find((c) => c.key === key);
-  if (hit) hit.qty = Math.min(99, hit.qty + qty);
-  else state.cart.push({ key, id, spec, qty: Math.min(99, Math.max(1, qty)) });
+  const want = Math.max(1, parseInt(qty, 10) || 1) + (hit ? hit.qty : 0);
+  const next = Math.min(cap, want);
+  if (hit) hit.qty = next;
+  else state.cart.push({ key, id, spec, qty: next });
   persist();
   renderCart();
-  toast(`已加入购物车 · ${p.name.slice(0, 12)}…`);
+  /* 被库存封顶时明确告知，否则用户以为加满了 */
+  toast(next < want
+    ? `「${p.name.slice(0, 12)}…」库存只剩 ${cap} 件，已按上限加入`
+    : `已加入购物车 · ${p.name.slice(0, 12)}…`);
   bump($('cartBadge'));
 }
 
@@ -199,7 +210,9 @@ function addToCart(id, spec, qty) {
 function setCartQty(key, qty) {
   const hit = state.cart.find((c) => c.key === key);
   if (!hit) return false;
-  hit.qty = Math.min(99, Math.max(1, parseInt(qty, 10) || 1));
+  const p = productOf(hit);
+  const cap = p ? Math.max(1, qtyCap(p)) : 99;
+  hit.qty = Math.min(cap, Math.max(1, parseInt(qty, 10) || 1));
   persist();
   renderCart();
   return true;
@@ -309,7 +322,9 @@ function buildDetail(p) {
 function buildParams(p) {
   const digital = p.cat === '数码影音' || p.cat === '电玩周边';
   return [
-    ['品牌', '雪峰优选 SnowPeak'], ['货号', p.id], ['分类', p.cat],
+    /* 品牌用商品库的真实值：没有品牌或标成「通用」时才回落到店铺名 */
+    ['品牌', (p.brand && p.brand !== '通用') ? p.brand : '雪峰优选 SnowPeak'],
+    ['货号', p.id], ['分类', p.cat],
     [p.cat === '服饰鞋包' ? '可选尺码' : '可选规格', p.specs.join(' / ')],
     ['产地', '中国'], ['发货时效', '48 小时内发出'], ['配送', '全场包邮（偏远地区除外）'],
     ['售后服务', '7 天无理由 · 赠运费险'], ['质保', digital ? '全国联保 1 年' : '非人为损坏 15 天换新']
@@ -408,6 +423,29 @@ function switchTab(name) {
   document.querySelectorAll('.m-panel').forEach((el) => el.classList.toggle('is-active', el.dataset.panel === name));
 }
 
+let detailSeq = 0; /* 详情刷新序号：连续点开不同商品时，旧响应不允许回写新弹窗 */
+async function refreshDetail(id) {
+  const seq = ++detailSeq;
+  try {
+    const res = await fetch('/api/products/' + encodeURIComponent(id));
+    const data = await res.json();
+    if (seq !== detailSeq) return; /* 已经切到别的商品 */
+    if (!data || !data.ok || !data.product) return;
+    const local = PRODUCTS.find((x) => x.id === id);
+    if (!local || !state.current || state.current.id !== id) return;
+    /* 就地合并：购物车封顶提示、AI 客服读的都是同一个 PRODUCTS 对象 */
+    const fresh = data.product;
+    ['name', 'sub', 'price', 'oldPrice', 'sold', 'rating', 'stock', 'brand'].forEach((k) => {
+      if (fresh[k] !== undefined) local[k] = fresh[k];
+    });
+    state.current = local;
+    $('mName').textContent = local.name;
+    $('mDesc').textContent = local.sub + '。库存 ' + local.stock + ' 件，48 小时内发货。';
+    $('mSold').textContent = `已售 ${local.sold} 件 · 库存 ${local.stock}`;
+    $('mPrice').textContent = money(local.price);
+    $('mOldPrice').textContent = '¥' + local.oldPrice;
+  } catch (e) { /* 接口异常就用本地目录，不影响打开详情 */ }
+}
 function openDetail(id) {
   const p = PRODUCTS.find((x) => x.id === id);
   trackView(id);
@@ -434,6 +472,7 @@ function openDetail(id) {
   $('detailModal').classList.add('is-open');
   $('detailModal').setAttribute('aria-hidden', 'false');
   const box = $('detailModal').querySelector('.modal-box'); if (box) box.scrollTop = 0;
+  refreshDetail(id); /* 库存/价格以服务端为准：别人下单后目录快照可能已经旧了 */
 }
 function closeDetail() {
   if (document.activeElement && $('detailModal').contains(document.activeElement)) document.activeElement.blur();
@@ -477,7 +516,13 @@ document.addEventListener('click', (e) => {
     toast(i > -1 ? '已取消收藏' : '已加入收藏 ⭐');
     e.stopPropagation();
   }
-  if (t.dataset.plus) { const c = state.cart.find((x) => x.key === t.dataset.plus); c.qty = Math.min(99, c.qty + 1); persist(); renderCart(); }
+  if (t.dataset.plus) {
+    const c = state.cart.find((x) => x.key === t.dataset.plus);
+    const p = productOf(c);
+    const cap = p ? Math.max(1, qtyCap(p)) : 99;
+    if (c.qty >= cap) toast(p ? `「${p.name.slice(0, 12)}…」库存只剩 ${cap} 件` : '已经到数量上限');
+    else { c.qty = Math.min(cap, c.qty + 1); persist(); renderCart(); }
+  }
   if (t.dataset.minus) {
     const c = state.cart.find(x => x.key === t.dataset.minus);
     c.qty--; if (c.qty <= 0) state.cart = state.cart.filter(x => x !== c);
@@ -489,7 +534,10 @@ document.addEventListener('click', (e) => {
     $('mSpecs').querySelectorAll('.spec-btn').forEach((b, i) => b.classList.toggle('is-active', i === state.curSpec));
   }
   if (t.dataset.step && t.closest('.qty-ctrl')) {
-    state.curQty = Math.min(99, Math.max(1, state.curQty + (+t.dataset.step)));
+    const cap = state.current ? Math.max(1, qtyCap(state.current)) : 99;
+    const want = Math.max(1, Math.min(cap, state.curQty + (+t.dataset.step)));
+    if (want === state.curQty && +t.dataset.step > 0) toast(`库存只剩 ${cap} 件`);
+    state.curQty = want;
     $('mQty').textContent = state.curQty;
   }
 });
@@ -728,12 +776,14 @@ function renderOrders() {
     const thumbs = o.items.slice(0, 4).map((it) => `<img src="${it.img}" alt="" />`).join('');
     const more = o.items.length > 4 ? `<span class="oc-thumb-more"><img src="${o.items[3].img}" alt="" /><em>+${o.items.length - 4}</em></span>` : '';
     const open = openedOrders.has(o.id);
+    /* 取消只在「待发货」给入口：后端也只允许这一步取消，已发货要联系客服 */
+    const cancelBtn = o.stage === 0 ? `<button data-oc-cancel="${o.id}">取消订单</button>` : '';
     const advanceBtn = (closed || cancelled) ? '' : `<button class="primary" data-oc-advance="${o.id}">模拟物流推进</button>`;
     return `<div class="order-card" data-order="${o.id}">
       <div class="oc-head"><span class="oc-id">订单号 ${o.id}</span><span>${fmtT(o.time)}</span><span class="oc-status ${stCls}">${stTxt}</span></div>
       <div class="oc-items">${thumbs}${more}</div>
       <div class="oc-sumrow"><span>共 ${o.count} 件 · 实付 <strong class="oc-amt">${money(o.amount)}</strong></span>
-        <span class="oc-btns"><button data-oc-toggle="${o.id}">${open ? '▲ 收起物流' : '📦 收货地址与物流'}</button>${advanceBtn}</span></div>
+        <span class="oc-btns"><button data-oc-toggle="${o.id}">${open ? '▲ 收起物流' : '📦 收货地址与物流'}</button>${cancelBtn}${advanceBtn}</span></div>
       <div class="oc-detail"${open ? '' : ' hidden'}>
         <div class="oc-addr">收货人：<b>${esc(o.addr.name)}</b>（${esc(o.addr.phone)}）<br />收货地址：<b>${esc(o.addr.prov)} ${esc(o.addr.city)}</b> ${esc(o.addr.detail)}</div>
         <div class="oc-track"><h5>物流轨迹 · ${cancelled ? '订单已取消' : (closed ? '已签收 ✅' : ORD_STATUS[o.stage])}</h5>${trackHTML(o)}</div>
@@ -744,6 +794,7 @@ function renderOrders() {
 $('meOrders').addEventListener('click', async (e) => {
   const tg = e.target.closest('[data-oc-toggle]');
   const ad = e.target.closest('[data-oc-advance]');
+  const cx = e.target.closest('[data-oc-cancel]');
   if (tg) {
     const id = tg.dataset.ocToggle;
     if (openedOrders.has(id)) openedOrders.delete(id); else openedOrders.add(id);
@@ -759,8 +810,24 @@ $('meOrders').addEventListener('click', async (e) => {
     renderOrders();
     toast(`物流更新：${ORD_STATUS[data.stage]}${data.stage === ORD_STATUS.length - 1 ? ' ✅ 感谢使用雪峰优选' : ''}`);
   }
+  if (cx) {
+    /* 取消：后端把订单置为已取消并回补库存；这里只负责把结果同步到页面 */
+    const id = cx.dataset.ocCancel;
+    cx.disabled = true;
+    cx.textContent = '取消中…';
+    const data = await Auth.api('/api/orders/' + id + '/cancel', {}, 'POST');
+    if (!data.ok) {
+      cx.disabled = false;
+      cx.textContent = '取消订单';
+      return toast(data.msg || '取消失败');
+    }
+    const o = ordersCache.find((x) => x.id === id);
+    if (o) o.stage = -1;
+    renderOrders();
+    toast('订单已取消，商品已回到库存');
+  }
 });
-$('accountBtn').onclick = () => switchView('me');
+/* 顶栏账号按钮的点击行为在 auth.js：未登录弹登录框、已登录进「我的」页 */
 /* 收藏入口移至“我的”页 */
 $('wishBtn').onclick = () => switchView('me');
 
@@ -849,9 +916,15 @@ function meItem(p, unwish) {
 function renderMe() {
   if (!$('meName')) return;
   const logged = window.Auth && Auth.isLoggedIn();
+  const prof = (window.Auth && Auth.profile) || {};
+  const bits = [prof.gender, prof.city].filter((x) => x && x !== '未填写');
   $('meName').textContent = logged ? Auth.nickname : '未登录';
-  $('meTip').textContent = logged ? '登录中 · 可正常下单，全场包邮' : '登录后可正常下单、同步收藏';
+  /* 资料直接显示在昵称下面：改完能立刻看到，也说明性别/城市是服务端存的 */
+  $('meTip').textContent = logged
+    ? (bits.length ? bits.join(' · ') + ' · 下单自动填地址' : '资料还没完善，点「编辑资料」补上性别和城市')
+    : '登录后可正常下单、同步收藏';
   $('meLoginBtn').hidden = !!logged;
+  $('meEditBtn').hidden = !logged;
   $('meLogoutBtn').hidden = !logged;
   $('meCartN').textContent = cartCount();
   $('meWishN').textContent = state.wish.length;
@@ -866,7 +939,171 @@ function renderMe() {
     ? viewList.map((p) => meItem(p, false)).join('')
     : '<p class="me-empty">暂无浏览记录</p>';
   fetchOrders().then(renderOrders); /* 订单从后端刷新后再渲染 */
+  loadAddrs(); /* 地址簿：登录态变化后跟着刷新 */
 }
+
+/* ---------- 收货地址簿：后端 /api/addresses 增删改查 ---------- */
+let addrCache = [];
+let editingAddrId = null; /* null 表示新增 */
+
+/* 省→市枚举与结算页同源（state.regions），只是换了一组控件 */
+function fillAfRegion(provName, cityName) {
+  const sel = $('afProv'), cit = $('afCity');
+  if (!sel || !cit) return;
+  const provs = Object.keys(state.regions);
+  if (!provs.length) {
+    sel.innerHTML = '<option>地址数据加载失败</option>';
+    cit.innerHTML = '';
+    return;
+  }
+  const prov = provs.includes(provName) ? provName : provs[0];
+  sel.innerHTML = provs.map((p) => `<option${p === prov ? ' selected' : ''}>${p}</option>`).join('');
+  const fill = () => {
+    const cities = state.regions[sel.value] || [];
+    const city = cities.includes(cityName) ? cityName : cities[0];
+    cit.innerHTML = cities.map((c) => `<option${c === city ? ' selected' : ''}>${c}</option>`).join('');
+  };
+  fill();
+  sel.onchange = fill;
+}
+
+function renderAddrs() {
+  const box = $('meAddrs');
+  if (!box) return;
+  const logged = window.Auth && Auth.isLoggedIn();
+  $('addrAddBtn').hidden = !logged;
+  if (!logged) {
+    addrCache = [];
+    $('addrForm').hidden = true;
+    box.innerHTML = '<p class="me-empty">登录后可管理收货地址，下单时会自动填入默认地址</p>';
+    return;
+  }
+  if (!addrCache.length) {
+    box.innerHTML = '<p class="me-empty">还没有收货地址，点「+ 新增」添加一条，下单时自动填入</p>';
+    return;
+  }
+  box.innerHTML = addrCache.map((a) => `<div class="addr-item${a.isDefault ? ' is-default' : ''}">
+    <div class="addr-main"><b>${esc(a.name)}</b><span class="addr-phone">${esc(a.phone)}</span>${a.isDefault ? '<em class="addr-tag">默认</em>' : ''}
+      <p>${esc(a.prov)} ${esc(a.city)} ${esc(a.detail)}</p></div>
+    <div class="addr-ops">
+      ${a.isDefault ? '' : `<button data-addr-default="${a.id}">设为默认</button>`}
+      <button data-addr-edit="${a.id}">编辑</button>
+      <button data-addr-del="${a.id}">删除</button>
+    </div></div>`).join('');
+}
+
+async function loadAddrs() {
+  if (!(window.Auth && Auth.isLoggedIn())) { addrCache = []; renderAddrs(); return; }
+  try {
+    const data = await Auth.api('/api/addresses', null, 'GET');
+    if (data.ok) addrCache = data.addresses || []; /* 后端已把默认地址排最前 */
+  } catch (e) { /* 接口异常时保留旧缓存 */ }
+  renderAddrs();
+}
+
+function openAddrForm(rec) {
+  const form = $('addrForm');
+  editingAddrId = rec ? rec.id : null;
+  $('afName').value = rec ? rec.name : ((window.Auth && Auth.nickname) || '');
+  $('afPhone').value = rec ? rec.phone : '';
+  $('afDetail').value = rec ? rec.detail : '';
+  $('afDefault').checked = rec ? !!rec.isDefault : !addrCache.length;
+  fillAfRegion(rec ? rec.prov : '', rec ? rec.city : '');
+  $('afErr').textContent = '';
+  form.hidden = false;
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('afName').focus();
+}
+
+$('addrAddBtn').onclick = () => openAddrForm(null);
+$('afCancel').onclick = () => { $('addrForm').hidden = true; editingAddrId = null; };
+$('addrForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = {
+    name: $('afName').value.trim(),
+    phone: $('afPhone').value.trim(),
+    prov: $('afProv').value,
+    city: $('afCity').value,
+    detail: $('afDetail').value.trim(),
+    isDefault: $('afDefault').checked
+  };
+  if (!body.name || !body.phone || !body.detail) {
+    $('afErr').textContent = '收货人、手机号和详细地址都要填';
+    return;
+  }
+  const btn = $('afSave');
+  btn.disabled = true;
+  /* 新增与编辑是同一个表单：有 id 走 PUT，没 id 走 POST */
+  const data = editingAddrId
+    ? await Auth.api('/api/addresses/' + editingAddrId, body, 'PUT')
+    : await Auth.api('/api/addresses', body, 'POST');
+  btn.disabled = false;
+  if (!data.ok) { $('afErr').textContent = data.msg || '保存失败'; return; }
+  $('addrForm').hidden = true;
+  editingAddrId = null;
+  toast(data.msg || '地址已保存');
+  await loadAddrs();
+};
+$('meAddrs').addEventListener('click', async (e) => {
+  const ed = e.target.closest('[data-addr-edit]');
+  const del = e.target.closest('[data-addr-del]');
+  const df = e.target.closest('[data-addr-default]');
+  if (ed) {
+    const rec = addrCache.find((a) => a.id === ed.dataset.addrEdit);
+    if (rec) openAddrForm(rec);
+    return;
+  }
+  if (df) {
+    const rec = addrCache.find((a) => a.id === df.dataset.addrDefault);
+    if (!rec) return;
+    const data = await Auth.api('/api/addresses/' + rec.id, {
+      name: rec.name, phone: rec.phone, prov: rec.prov,
+      city: rec.city, detail: rec.detail, isDefault: true
+    }, 'PUT');
+    if (!data.ok) return toast(data.msg || '设置失败');
+    toast('已设为默认地址');
+    await loadAddrs();
+    return;
+  }
+  if (del) {
+    const rec = addrCache.find((a) => a.id === del.dataset.addrDel);
+    if (!rec) return;
+    const data = await Auth.api('/api/addresses/' + rec.id, null, 'DELETE');
+    if (!data.ok) return toast(data.msg || '删除失败');
+    if (editingAddrId === rec.id) { $('addrForm').hidden = true; editingAddrId = null; }
+    toast('地址已删除');
+    await loadAddrs();
+  }
+});
+
+/* ---------- 个人资料：性别/城市（PATCH /api/profile） ---------- */
+function fillProfileForm() {
+  const prof = (window.Auth && Auth.profile) || {};
+  const cities = Object.keys(state.regions).reduce((arr, p) => arr.concat(state.regions[p] || []), []);
+  $('mfGender').value = prof.gender || '未填写';
+  $('mfCity').innerHTML = '<option value="未填写">未填写</option>' +
+    cities.map((c) => `<option value="${c}">${c}</option>`).join('');
+  $('mfCity').value = cities.includes(prof.city) ? prof.city : '未填写';
+  $('mfErr').textContent = '';
+}
+$('meEditBtn').onclick = () => {
+  fillProfileForm();
+  $('meProfileForm').hidden = false;
+  $('meProfileForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+$('mfCancel').onclick = () => { $('meProfileForm').hidden = true; };
+$('meProfileForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = $('mfSave');
+  btn.disabled = true;
+  const data = await Auth.updateProfile({ gender: $('mfGender').value, city: $('mfCity').value });
+  btn.disabled = false;
+  if (!data.ok) { $('mfErr').textContent = data.msg || '保存失败'; return; }
+  $('meProfileForm').hidden = true;
+  toast('资料已更新');
+  renderMe(); /* 昵称下方那行资料立即刷新 */
+};
+
 $('meStatCart').onclick = () => switchView('cart');
 $('meStatWish').onclick = () => $('meWish').scrollIntoView({ behavior: 'smooth', block: 'center' });
 $('meStatViewed').onclick = () => $('meViewed').scrollIntoView({ behavior: 'smooth', block: 'center' });

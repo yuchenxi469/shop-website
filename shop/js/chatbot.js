@@ -71,9 +71,13 @@
 
   /* 流式请求：后端按 SSE 逐条推事件，交给 onEvent 即时渲染（打字机 / 工具状态都靠它） */
   async function askModelStream(text, onEvent) {
+    /* 带上登录态：查订单的工具只认服务端会话，前端自报昵称不算数 */
+    const headers = { 'Content-Type': 'application/json' };
+    const tk = window.Auth && Auth.token;
+    if (tk) headers.Authorization = 'Bearer ' + tk;
     const res = await fetch('/api/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ text, history: chatHistory(), profile: modelProfile() })
     });
     if (!res.ok || !res.body) {
@@ -486,6 +490,39 @@
       }
     },
     {
+      id: 'orderTrack',
+      /* 查自己的订单：走真实接口，不编造进度；未登录先引导登录 */
+      kw: ['我的订单', '查订单', '订单号', '到哪了', '发货了吗', '物流状态', '签收了吗', '查物流', '我的快递'],
+      rx: /(订单|快递|物流)[^。！？\n]{0,6}(到哪|进度|状态|查|在哪)|(查|看看)[^。！？\n]{0,4}(订单|物流|快递)|(发货|签收)了?吗/,
+      run: async (t) => {
+        if (!(window.Auth && Auth.isLoggedIn())) {
+          return { text: '订单得登录才能查（我只能看到你自己名下的单）。顶栏点「登录/注册」，登录后我把最新一单的真实进度拉给你。', chips: ['预算 500 元推荐', '看看热销'] };
+        }
+        const m = /SP\d{8,}/i.exec(t);
+        const data = await Auth.api('/api/orders', null, 'GET');
+        if (!data || !data.ok) {
+          return { text: '订单接口没通（' + esc((data && data.msg) || '网络异常') + '），稍后再问我一次。', chips: ['我的订单'] };
+        }
+        const list = data.orders || [];
+        if (!list.length) {
+          return { text: '你这个账号还没有订单。挑好后「去结算」下单，我这边就能查到真实进度。', chips: ['预算 500 元推荐', '看看热销'] };
+        }
+        const o = m ? list.find((x) => x.id === m[0].toUpperCase()) : list[0];
+        if (!o) {
+          return { text: `没查到这个账号下的订单 ${esc(m[0])}。可以到「我的」页核对单号，或者我把最新那单的进度发你。`, chips: ['我的订单'] };
+        }
+        const stages = ['待发货', '已揽收', '运输中', '到达目的城市', '派送中', '已签收'];
+        const st = o.stage < 0 ? '已取消' : (stages[o.stage] || '处理中');
+        const traces = o.traces || [];
+        const cur = traces[Math.max(0, Math.min(o.stage, traces.length - 1))] || {};
+        const next = o.stage >= 0 && o.stage + 1 < traces.length ? traces[o.stage + 1] : null;
+        return {
+          text: `📦 <b>${esc(o.id)}</b> · <b>${st}</b>\n· ${o.count} 件 · 实付 ¥${o.amount}\n· 最新：${esc(cur.txt || '暂无轨迹')}${next ? `\n· 下一步：${esc(next.txt)}` : ''}`,
+          chips: ['继续问别的', '看看热销']
+        };
+      }
+    },
+    {
       id: 'shipping',
       kw: ['发货', '快递', '几天到', '多久到', '运费', '包邮', '物流', '签收'],
       run: () => ({
@@ -600,6 +637,31 @@
         return {
           text: `🔧 <b>${p.name}</b>\n· 官方描述：${p.sub}\n· 可选规格：${p.specs.join(' / ')}\n· 参考价：¥${p.price}（原价 ¥${p.oldPrice}）\n${extra}`,
           goods: [p], chips: ['加入购物车', '和同款对比']
+        };
+      }
+    },
+    {
+      id: 'addCart',
+      /* 明确的购买动作；「够吗/多少钱」这类问句不在此列，避免把提问变成写操作 */
+      kw: ['加入购物车', '加进购物车', '放进购物车', '加购', '就要这个', '就要它', '就它了', '买这个', '来一个', '来一件', '拿下'],
+      rx: /(?:加入|加到|放进|放到|加进|扔进)[^。！？\n]{0,4}购物车|就要(?:这个|它|这件|这款)|就它了|来一[个件款]|买了|拿下|要了/,
+      run: (t) => {
+        const shown = lastGoods();
+        if (!shown.length) {
+          return { text: '要加哪一件？先说商品名，或者从卡片上点「加购」，我核对库存后给你确认。', chips: ['预算 500 元推荐', '看看热销'] };
+        }
+        /* 后端 add_to_cart 是单件接口：指代单件的只出一张卡，泛指一批的最多两张 */
+        const single = /就(?:要)?(?:这个|它|这件|这款)|就它了|买(?:这个|它)|要了|拿下|来一[个件款]/.test(t);
+        const picks = single ? shown.slice(0, 1) : shown.slice(0, 2);
+        const list = picks.map((p) => `· ${esc(p.name)} ¥${p.price}`).join('\n');
+        return {
+          text: picks.length > 1
+            ? `按上一轮的顺序列了前 ${picks.length} 件，一次确认一件：\n${list}\n\n规格没提就按默认，要别的颜色/尺码直接说。`
+            : `就 <b>${esc(picks[0].name)}</b> ¥${picks[0].price} 这件。规格没提我按默认；要别的颜色/尺码说一声。`,
+          goods: picks,
+          /* 不直接写购物车：交给确认卡，点了才让后端复核库存与规格 */
+          pending: picks.map((p) => ({ type: 'add_to_cart', id: p.id, spec: '', qty: 1 })),
+          chips: ['购物车里有什么', '继续推荐', '去结算']
         };
       }
     },
@@ -802,7 +864,8 @@
   }
 
   /* ---------- 生成回复 ---------- */
-  function answer(text) {
+  /* 意图可以是异步的（比如查订单要调接口），同步意图不受影响 */
+  async function answer(text) {
     const t = text.toLowerCase();
     const scene = detectScene(text);
     if (scene) { profile.scene = scene; }
@@ -813,9 +876,9 @@
     const hit = classify(text);
     let res = null;
     if (hit) {
-      res = hit.intent.run(text, hit.match || ['', '']);
+      res = await hit.intent.run(text, hit.match || ['', '']);
     }
-    if (!res) res = INTENTS.find((i) => i.id === 'search').run(text);   // 兜底：当商品搜索处理
+    if (!res) res = await INTENTS.find((i) => i.id === 'search').run(text);   // 兜底：当商品搜索处理
     if (!res || !res.text) {
       res = {
         text: `这个我先老实说：不确定 😅\n我能立刻帮你做的是——<b>按预算配清单</b>、<b>查价格库存</b>、<b>算尺码</b>、<b>凑满减</b>、<b>退换货咨询</b>。\n换个说法再问我一次？`,
@@ -905,6 +968,26 @@
     }).join('').replace(/\n\s*/g, '');
   }
 
+  /* 加购统一入口：先让后端复核库存与规格，通过后才写本地购物车。
+     AI 卡片上的「加购」和确认卡上的「确认加入」都走这里，不存在绕过校验的旁路。 */
+  async function addViaServer(id, spec, qty) {
+    let data = null;
+    try {
+      const res = await fetch('/api/cart/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ productId: id, spec: spec || '', qty: qty || 1 }] })
+      });
+      data = await res.json().catch(() => null);
+    } catch (err) {
+      console.warn('[小峰] 加购复核失败：', err);
+    }
+    if (!data || !data.ok) return { ok: false, msg: (data && data.msg) || '网络不太稳，稍后再试' };
+    const row = (data.rows || [])[0] || {};
+    Shop.addToCart(row.productId || id, row.spec || spec, row.qty || qty || 1);
+    return { ok: true, row };
+  }
+
   /* 确认写操作：先让后端复核（库存/规格/金额），通过后才写本地购物车。
      前端不判断库存、不自己算钱——这是「写操作以后端为准」的落点。 */
   async function confirmPending(pid, btn) {
@@ -960,29 +1043,18 @@
     }
     btn.disabled = true;
     btn.textContent = '核对中…';
-    let data = { ok: false, msg: '网络不太稳，稍后再点一次' };
-    try {
-      const res = await fetch('/api/cart/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: [{ productId: act.id, spec: act.spec, qty: act.qty }] })
-      });
-      data = (await res.json().catch(() => null)) || data;
-    } catch (err) {
-      console.warn('[小峰] 加购复核失败：', err);
-    }
-    if (!data.ok) {
+    const r = await addViaServer(act.id, act.spec, act.qty);
+    if (!r.ok) {
       btn.disabled = false;
       btn.textContent = '确认加入';
-      tip.textContent = data.msg || '这件现在加不了';
+      if (tip) tip.textContent = r.msg || '这件现在加不了';
       return;
     }
-    const row = (data.rows || [])[0] || {};
-    Shop.addToCart(row.productId || act.id, row.spec || act.spec, row.qty || act.qty);
+    const row = r.row;
     card.classList.add('is-done');
     hd.textContent = '已加入购物车';
     /* 只报这件的小计：满减是整单一次性抵扣，按单件算会把优惠重复摊进去 */
-    tip.innerHTML = '小计 <b>' + money((Number(row.price) || 0) * (Number(row.qty) || 1)) + '</b>';
+    if (tip) tip.innerHTML = '小计 <b>' + money((Number(row.price) || 0) * (Number(row.qty) || 1)) + '</b>';
     delete pendStore[pid];
   }
 
@@ -1171,7 +1243,7 @@
       }
     }
     try {
-      res = answer(clean);
+      res = await answer(clean);
     } catch (err) {
       console.error('[小峰] 回答失败：', err);
       res = { text: '刚才我卡了一下下 🙈 麻烦换个说法再问一次？', chips: defaultChips() };
@@ -1263,7 +1335,7 @@
   });
 
   /* 气泡内的商品操作 */
-  body.addEventListener('click', (e) => {
+  body.addEventListener('click', async (e) => {
     const ok = e.target.closest('[data-cs-ok]');
     const no = e.target.closest('[data-cs-no]');
     const add = e.target.closest('[data-cs-add]');
@@ -1280,8 +1352,17 @@
     }
     if (add) {
       const p = byId(add.dataset.csAdd);
-      Shop.addToCart(p.id, p.specs[0], 1);
-      e.target.textContent = '已加 ✓';
+      if (!p) return;
+      add.disabled = true;
+      add.textContent = '核对中…';
+      const r = await addViaServer(p.id, p.specs[0], 1);
+      add.disabled = false;
+      if (!r.ok) {
+        add.textContent = '加购';
+        toast2(r.msg || '这件现在加不了');
+        return;
+      }
+      add.textContent = '已加 ✓';
       setTimeout(() => { const n = body.querySelector(`[data-cs-add="${p.id}"]`); if (n) n.textContent = '加购'; }, 1400);
       return; /* 点加购不再连带打开详情 */
     }

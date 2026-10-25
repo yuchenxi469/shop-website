@@ -353,6 +353,26 @@ body { padding-bottom: 64px; }
 .me-item .mi-unwish { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, .9); color: var(--price); font-size: 13px; display: grid; place-items: center; cursor: pointer; border: none; }
 .me-empty { font-size: 13px; color: #98a3b1; padding: 4px 0; grid-column: 1 / -1; }
 
+/* ---------- “我的”页：收货地址簿（表单复用结算弹窗的 .addr-form） ---------- */
+.addr-list { display: flex; flex-direction: column; gap: 10px; }
+.addr-item { display: flex; justify-content: space-between; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.addr-item.is-default { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(31, 111, 235, .06); }
+.addr-main { font-size: 13.5px; color: var(--ink); min-width: 0; }
+.addr-main b { font-size: 14px; margin-right: 8px; }
+.addr-phone { color: var(--ink-2); margin-right: 8px; }
+.addr-tag { font-style: normal; font-size: 11px; color: var(--brand); border: 1px solid var(--brand); border-radius: 999px; padding: 1px 7px; }
+.addr-main p { margin: 6px 0 0; color: var(--ink-2); line-height: 1.5; }
+.addr-ops { display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0; }
+.addr-ops button { font-size: 12.5px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-2); cursor: pointer; transition: .18s; }
+.addr-ops button:hover { border-color: var(--brand); color: var(--brand); }
+.addr-ops button[data-addr-del]:hover { border-color: var(--price); color: var(--price); }
+.addr-form { padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px; background: #fbfcfe; }
+.addr-form .auth-check { flex-direction: row; align-items: center; gap: 8px; flex: 0 0 auto; }
+.addr-btns { gap: 10px; }
+.addr-btns .btn { flex: 0 0 auto; }
+.addr-btns .btn-text { width: auto; padding: 9px 14px; }
+.me-sec .btn-mini { margin-left: 8px; padding: 4px 10px; font-size: 12px; font-weight: 500; vertical-align: middle; }
+
 /* ============ 下单结算弹窗 ============ */
 .order-box { width: min(560px, 100%) !important; padding: 30px 32px 26px; }
 .order-items { border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; background: #fafbfd; max-height: 168px; overflow: auto; }

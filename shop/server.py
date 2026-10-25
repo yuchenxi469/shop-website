@@ -238,7 +238,8 @@ CHAT_PERSONA = """你是「雪峰优选」商城的导购小峰——在户外�
 13. 用户已经明确说要买，且商品能唯一确定（「加购」「来一个」「就要这个」），直接调用 add_to_cart：规格没提就用默认，回复里补一句「默认黑色，要白色说一声」。不要因为购物车已有同款、或者想先问颜色，就把动作停在反问上。
 14. 一句话里带多个约束时（预算 + 品类 + 品牌 + 用途），先拆成几件事再查：「1000 元买耳机和键盘，最好同品牌，剩下还能配个件」= ①预算内找耳机 ②找键盘 ③尽量同品牌 ④算剩余 ⑤用剩余金额再查一次配件（query 填「配件」或「充电宝」）。①②③⑤ 每一步都要真的调工具，④ 用查回来的价格算，别搜一次就下结论；⑤ 不许省略，也不许把「你要什么配件」反问回用户——查完直接说够不够、能买哪件。
 15. 约束互相打架时（同品牌组合超预算、预算买不全、某品类没货）：第一句就把结论说准——买不全就说买不全、差多少，不要说「够」再改口。然后给 2~3 个能直接下单的具体方案，每个写成「A + B = 合计，比预算多/少多少」，并说清保了什么、牺牲了什么（保品牌 / 保预算 / 保配置）。预算内只有一组时，直接说「这个预算内能买全的只有这一组」，再给「加预算 / 减一件」的具体建议；超预算的方案最多提 1 个做对比，且必须标「超预算」，不要和可行方案并列成方案一、二、三。不要给「等优惠」「再看看」这种落不了地的建议，也不许只说「找不到」。
-16. 推荐必须给理由，理由用库里的字段说（价格、评分、已售、库存、规格），不要空话，也不要编库里没有的参数。"""
+16. 推荐必须给理由，理由用库里的字段说（价格、评分、已售、库存、规格），不要空话，也不要编库里没有的参数。
+17. 用户问订单或物流（「我的订单到哪了」「发货了吗」「帮我查 SP…」）时调 query_order：给了单号就填 order_id，没给就查最近一单。只能复述工具返回的状态、节点和时间，缺的就说没数据；工具返回没登录就先让他登录，返回没订单就如实说没有，不要编一个单号或进度。"""
 
 
 def shop_snapshot():
@@ -540,6 +541,20 @@ CHAT_TOOLS = [{
             "required": ["product_id"],
         },
     },
+}, {
+    "type": "function",
+    "function": {
+        "name": "query_order",
+        "description": "查当前登录用户自己的订单与物流进度，返回订单号、状态、件数、金额、最新物流节点与下一步。用户问「我的订单到哪了」「发货了吗」「查订单 / 物流」时调用；没有单号就不传，默认查最近一单。只能查到自己账号的单，未登录会返回提示，不要编造物流。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "string",
+                             "description": "订单号，形如 SP261025102441267。用户没给就别填，默认查最近一单"},
+            },
+            "required": [],
+        },
+    },
 }]
 
 
@@ -685,6 +700,9 @@ def run_chat_tool(name, args, allow_write=True, deny_reason="", profile=None):
     注意：加购 / 下单 / 改数量 / 移除都只生成「待确认动作」，不执行写操作。"""
     if name == "get_cart":
         return cart_snapshot(profile)
+    if name == "query_order":
+        # 订单只认登录态：昵称来自服务端会话，不是前端自报
+        return order_snapshot((profile or {}).get("nickname"), args.get("order_id") or "")
     if name in ("add_to_cart", "create_order", "update_cart_item", "remove_from_cart"):
         cart = (profile or {}).get("cartItems") if isinstance(profile, dict) else None
         return prepare_write(name, args, allow_write, deny_reason, cart)
@@ -931,6 +949,8 @@ def tool_status(name, args):
         return "正在准备结算…"
     if name == "get_cart":
         return "正在查看购物车…"
+    if name == "query_order":
+        return "正在查订单与物流…"
     if name == "update_cart_item":
         return "正在核对购物车数量…"
     if name == "remove_from_cart":
@@ -1477,7 +1497,8 @@ class Handler(SimpleHTTPRequestHandler):
            q        关键词，不区分大小写匹配 名称/副标题/分类
            category 分类精确匹配（如：户外装备）
            min/max  价格区间
-           sort     hot 推荐位优先 | sales销量降序 | price_asc | price_desc | rating评分降序
+           sort     hot 推荐位优先 | relevance 关键词相关性 | sales销量降序 | price_asc | price_desc | rating评分降序
+           关键词搜索时 sort 不传/hot/relevance 均按相关性排序，用户显式选销量价格时以用户选择为准
            page/pageSize 分页（从 1 开始，pageSize 上限 100；传了才生效）"""
         qs = parse_qs(urlparse(self.path).query)
 
@@ -1488,10 +1509,13 @@ class Handler(SimpleHTTPRequestHandler):
         result = products
 
         q = arg("q")
+        hit_rank = None
         if q:
-            # 与 AI 客服共用 search_products：搜索框与客服不再各说各话
-            hit_ids = {p.get("id") for p in search_products(q, pool=products)}
-            result = [p for p in result if p.get("id") in hit_ids]
+            # 与 AI 客服共用 search_products：搜索框与客服不再各说各话。
+            # 保留命中名次：只取 id 集合会把「匹配度」丢掉，搜“耳机”就会变成按热销排
+            hits = search_products(q, pool=products)
+            hit_rank = {str(p.get("id")): i for i, p in enumerate(hits)}
+            result = [p for p in result if str(p.get("id")) in hit_rank]
         cat = arg("category")
         if cat:
             result = [p for p in result if p.get("cat") == cat]
@@ -1506,7 +1530,10 @@ class Handler(SimpleHTTPRequestHandler):
             result = [p for p in result if p.get("price", 0) <= hi]
 
         sort = arg("sort")
-        if sort == "hot":
+        if hit_rank and sort in ("", "hot", "relevance"):
+            # 有关键词时「综合」= 相关性：推荐位不能抢在匹配度前面
+            result = sorted(result, key=lambda p: hit_rank.get(str(p.get("id")), 1 << 30))
+        elif sort == "hot":
             result = sorted(result, key=lambda p: (not p.get("hot", False), str(p.get("id", ""))))
         elif sort == "sales":
             result = sorted(result, key=lambda p: p.get("sold", 0), reverse=True)
@@ -1571,6 +1598,9 @@ class Handler(SimpleHTTPRequestHandler):
         prof = body.get("profile")
         if not isinstance(prof, dict):
             prof = {}
+        # 订单工具只认登录态：昵称从服务端会话取，不信前端自报的字段
+        sess = get_session(self.bearer_token())
+        prof["nickname"] = sess["nickname"] if sess else ""
 
         try:
             reply, ids, trace, pending = agent_chat(text, hist, prof)
@@ -1607,6 +1637,9 @@ class Handler(SimpleHTTPRequestHandler):
         hist = hist if isinstance(hist, list) else []
         prof = body.get("profile")
         prof = prof if isinstance(prof, dict) else {}
+        # 订单工具只认登录态：昵称从服务端会话取，不信前端自报的字段
+        sess = get_session(self.bearer_token())
+        prof["nickname"] = sess["nickname"] if sess else ""
 
         # 流式响应：不写 Content-Length，靠关闭连接表示结束（HTTP/1.0）
         self.send_response(200)
@@ -1724,16 +1757,22 @@ class Handler(SimpleHTTPRequestHandler):
         err = check_addr(addr)
         if err:
             return self.send_json(400, {"ok": False, "msg": err})
-        priced, err = price_items(items)
-        if err:
-            return self.send_json(422, {"ok": False, "msg": err})
         with _lock:
             orders = load_json_file(ORDERS_FILE, [])
-            # 幂等：同一用户相同 clientOrderId 直接返回已存在的单
+            # 幂等：同一用户相同 clientOrderId 直接返回已存在的单（不能再扣一次库存）
             if client_oid:
                 for o in orders:
                     if o.get("nickname") == nickname and o.get("clientOrderId") == client_oid:
                         return self.send_json(200, {"ok": True, "order": o, "msg": "订单已存在（幂等返回）"})
+            # 锁内取商品快照：计价、库存校验、扣减必须基于同一份数据，否则校验通过后会被别的请求买走
+            products = load_json_file(PRODUCTS_FILE, [])
+            pmap = {p["id"]: p for p in products}
+            priced, err = price_items(items, pmap)
+            if err:
+                return self.send_json(422, {"ok": False, "msg": err})
+            need = rows_need(priced["rows"])
+            for pid, qty in need.items():
+                pmap[pid]["stock"] = int(pmap[pid].get("stock") or 0) - qty
             order = {
                 "id": "SP" + time.strftime("%y%m%d%H%M%S") + "%03d" % random.randrange(1000),
                 "clientOrderId": client_oid,
@@ -1749,7 +1788,18 @@ class Handler(SimpleHTTPRequestHandler):
             }
             order["traces"] = build_traces(order)
             orders.insert(0, order)
-            save_json_file(ORDERS_FILE, orders)
+            try:
+                save_json_file(PRODUCTS_FILE, products)  # 先扣库存
+                save_json_file(ORDERS_FILE, orders)      # 再落订单
+            except Exception:
+                # 订单没落成，把刚扣的库存还回去，避免“库存少了却没有订单”
+                for pid, qty in need.items():
+                    pmap[pid]["stock"] = int(pmap[pid].get("stock") or 0) + qty
+                try:
+                    save_json_file(PRODUCTS_FILE, products)
+                except Exception as e:
+                    print("[订单] 库存回滚失败：%s" % e, file=sys.stderr)
+                raise
         if data.get("saveAddr"):
             save_addr_from_order(nickname, order["addr"])
         self.send_json(200, {"ok": True, "order": order, "msg": "下单成功"})
@@ -1784,10 +1834,26 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(404, {"ok": False, "msg": "订单不存在"})
             if o.get("nickname") != nickname:
                 return self.send_json(403, {"ok": False, "msg": "无权操作他人订单"})
+            if o["stage"] < 0:
+                return self.send_json(422, {"ok": False, "msg": "订单已取消，无需重复操作"})
             if o["stage"] != 0:
                 return self.send_json(422, {"ok": False, "msg": "已发货订单如需取消，请联系客服"})
             o["stage"] = -1
+            # 先定订单状态再回补：顺序反过来的话，库存已还但订单没取消，用户再取消一次会重复回补
             save_json_file(ORDERS_FILE, orders)
+            products = load_json_file(PRODUCTS_FILE, [])
+            pmap = {p["id"]: p for p in products}
+            changed = False
+            for pid, qty in rows_need(o.get("items")).items():
+                if pid in pmap:
+                    pmap[pid]["stock"] = int(pmap[pid].get("stock") or 0) + qty
+                    changed = True
+            if changed:
+                try:
+                    save_json_file(PRODUCTS_FILE, products)
+                except Exception as e:
+                    # 取消已经生效，库存回补失败只记日志，不回滚订单也不向用户报错
+                    print("[订单] 取消回补库存失败：%s" % e, file=sys.stderr)
         self.send_json(200, {"ok": True, "msg": "订单已取消", "order": o})
 
     # ---- 地址簿 ----
@@ -1874,13 +1940,20 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 # ---------------- 订单领域：计价、地址校验与物流轨迹生成 ----------------
-def price_items(items):
-    """服务端权威计价：按商品表重算商品行与优惠，下单与试算共用。
+# 状态文案与前端 ORD_STATUS 同字面：客服查单回给大家的必须是同一套说法
+ORDER_STAGES = ["待发货", "已揽收", "运输中", "到达目的城市", "派送中", "已签收"]
+
+
+def price_items(items, pmap=None):
+    """服务端权威计价：按商品表重算商品行与优惠，下单、试算、加购复核共用。
+    pmap 可传入锁内的商品快照：下单时要保证「计价 → 校验库存 → 扣减」看的是同一份数据。
     返回 (priced, err)；err 非 None 表示校验失败。"""
     if not items:
         return None, "购物车是空的"
-    pmap = {p["id"]: p for p in load_json_file(PRODUCTS_FILE, [])}
+    if pmap is None:
+        pmap = {p["id"]: p for p in load_json_file(PRODUCTS_FILE, [])}
     rows, subtotal = [], 0.0
+    need = {}  # productId -> 本单总件数：同一商品的不同规格共用一份库存，必须聚合后再比
     for it in items[:60]:
         p = pmap.get(str(it.get("productId", "")))
         if not p:
@@ -1891,9 +1964,17 @@ def price_items(items):
             qty = 0
         if qty < 1 or qty > 99:
             return None, "商品数量需在 1~99 之间"
+        need[p["id"]] = need.get(p["id"], 0) + qty
         rows.append({"productId": p["id"], "name": p["name"], "spec": str(it.get("spec", "")),
                      "qty": qty, "price": p["price"], "img": p["img"]})
         subtotal += p["price"] * qty
+    for pid, qty in need.items():
+        stock = int(pmap[pid].get("stock") or 0)
+        if qty > stock:
+            name = str(pmap[pid].get("name") or pid)[:16]
+            if stock > 0:
+                return None, "「%s」只剩 %d 件，请调整数量" % (name, stock)
+            return None, "「%s」暂时无货" % name
     discount = PROMO_OFF if subtotal >= PROMO_THRESHOLD else 0
     return {
         "rows": rows,
@@ -1902,6 +1983,16 @@ def price_items(items):
         "discount": discount,
         "amount": round(subtotal - discount, 2),
     }, None
+
+
+def rows_need(rows):
+    """从计价结果汇总 productId -> 总件数，供下单扣库存 / 取消回补使用"""
+    need = {}
+    for r in rows or []:
+        pid = str(r.get("productId") or "")
+        if pid:
+            need[pid] = need.get(pid, 0) + int(r.get("qty") or 0)
+    return need
 
 
 def check_addr(a):
@@ -1956,6 +2047,53 @@ def build_traces(order):
         "包裹已送达：" + rnd.choice(LAST_MILE) + "，感谢使用雪峰优选！",
     ]
     return [{"txt": txts[i], "t": ts[i]} for i in range(6)]
+
+
+def order_snapshot(nickname, oid=""):
+    """查当前登录用户的一笔订单（不传单号取最近一单），只给模型可复述的真实字段。
+    单号存在但属于别人时按「没这单」处理，不泄露存在性。
+    返回结构用 order 而不是 items，避免被当成本轮推荐商品挂卡片。"""
+    if not nickname:
+        return {"ok": False, "count": 0,
+                "msg": "用户还没登录，查不到订单。先让他登录（顶栏或「我的」页），"
+                       "再说明登录后我才能看到订单；不要编造物流进度。"}
+    orders = [o for o in load_json_file(ORDERS_FILE, []) if o.get("nickname") == nickname]
+    if not orders:
+        return {"ok": False, "count": 0,
+                "msg": "这个用户还没有订单。可以问他要不要先挑商品，不要编一个订单号。"}
+    oid = str(oid or "").strip().upper()
+    if oid:
+        o = next((x for x in orders if str(x.get("id")).upper() == oid), None)
+        if not o:
+            return {"ok": False, "count": 0,
+                    "msg": "这个账号下没有单号 %s。让他去「我的」页核对，不要猜。" % oid[:24]}
+    else:
+        # 按时间取最新一单：不依赖列表顺序（数据被手改或换存储时仍然对）
+        o = max(orders, key=lambda x: x.get("time") or 0)
+    stage = int(o.get("stage") or 0)
+    traces = o.get("traces") or []
+    idx = max(0, min(stage, len(traces) - 1)) if traces else 0
+    now = traces[idx] if traces else {}
+    nxt = traces[stage + 1] if 0 <= stage < len(traces) - 1 else {}
+    state = "已取消" if stage < 0 else (ORDER_STAGES[stage] if stage < len(ORDER_STAGES) else "处理中")
+    addr = o.get("addr") or {}
+
+    def fmt(ms):
+        return time.strftime("%m-%d %H:%M", time.localtime((ms or 0) / 1000)) if ms else ""
+
+    rows = ["%s×%d" % (str(it.get("name") or "")[:16], int(it.get("qty") or 0))
+            for it in (o.get("items") or [])[:4]]
+    return {"ok": True, "count": 1,
+            "desc": "查订单 %s → %s" % (o.get("id"), state),
+            "order": {
+                "id": o.get("id"), "state": state,
+                "count": o.get("count"), "amount": o.get("amount"),
+                "items": "；".join(rows),
+                "address": ("%s %s" % (addr.get("prov", ""), addr.get("city", ""))).strip(),
+                "time": fmt(o.get("time")),
+                "latest": now.get("txt") or "", "latestTime": fmt(now.get("t")),
+                "next": nxt.get("txt") or "",
+            }}
 
 
 def save_addr_from_order(nickname, addr):

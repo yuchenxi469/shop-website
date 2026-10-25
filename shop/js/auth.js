@@ -77,11 +77,35 @@
     if (window.Shop && Shop.renderMe) Shop.renderMe();
   }
 
+  /* 注册城市下拉：枚举来自后端 /api/regions，与收货地址共用同一份数据。
+     以前这里写死 6 个城市，和地址表单的 15 个省对不上。 */
+  let regionCache = null;
+  async function fillRegCity() {
+    const sel = $('rCity');
+    if (!sel || sel.dataset.ready === '1') return;
+    if (!regionCache) {
+      try {
+        const res = await fetch('/api/regions');
+        const d = await res.json();
+        if (d && d.ok && d.regions) regionCache = d.regions;
+      } catch (e) { /* 接口没通就保留占位，不编造城市 */ }
+    }
+    if (!regionCache) {
+      sel.innerHTML = '<option value="">城市数据加载失败</option>';
+      return;
+    }
+    sel.innerHTML = Object.keys(regionCache).map((p) => '<optgroup label="' + p + '">' +
+      (regionCache[p] || []).map((c) => '<option value="' + c + '">' + c + '</option>').join('') +
+      '</optgroup>').join('');
+    sel.dataset.ready = '1';
+  }
+
   function openLogin(tab) {
     $('authModal').classList.add('is-open');
     $('authModal').setAttribute('aria-hidden', 'false');
     switchTab(tab || 'login');
     setErr('loginErr', ''); setErr('regErr', '');
+    fillRegCity(); /* 城市选项按需拉取，不阻塞弹窗打开 */
     ['lNickname', 'lPassword', 'rNickname', 'rPassword', 'rPassword2'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
     const first = (tab === 'reg' ? $('rNickname') : $('lNickname'));
     if (first) setTimeout(() => first.focus(), 120);
@@ -113,9 +137,13 @@
 
   /* ---------- 事件绑定 ---------- */
   function bind() {
-    // 顶栏账号按钮 → “我的”页（登录/退出在页内操作）
+    /* 顶栏按钮：未登录直接弹登录框（按钮文字就是「登录/注册」），已登录才进「我的」页。
+       注意别在 app.js 里再绑一次：后执行的会盖掉这里。 */
     const acc = $('accountBtn');
-    if (acc) acc.onclick = () => { if (window.Shop && Shop.switchView) Shop.switchView('me'); };
+    if (acc) acc.onclick = () => {
+      if (nickname) { if (window.Shop && Shop.switchView) Shop.switchView('me'); }
+      else openLogin('login');
+    };
 
     // “我的”页内的登录 / 退出按钮
     const mlb = $('meLoginBtn');
@@ -177,8 +205,18 @@
   window.Auth = {
     isLoggedIn: () => !!nickname,
     get nickname() { return nickname; },
+    get token() { return token; },   /* 供 AI 客服带上登录态：查订单只认服务端会话 */
     get profile() { return { ...profile }; },
     api,          // 带 token 的接口请求：Auth.api(path, body, method)，供 app.js 订单/地址模块复用
+    /* 改资料：成功后同步本地缓存（性别/城市用于下单预填），失败把后端原话交给调用方 */
+    async updateProfile(patch) {
+      const data = await api('/api/profile', patch || {}, 'PATCH');
+      if (data.ok) {
+        profile = { gender: data.gender || '', city: data.city || '' };
+        updateUI();
+      }
+      return data;
+    },
     openLogin,
     closeLogin,
     logout,
