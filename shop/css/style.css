@@ -460,6 +460,7 @@ body { padding-bottom: 64px; }
 .done-meta > div { flex: 1; min-width: 130px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; padding: 10px 12px; }
 .done-meta span { display: block; font-size: 11.5px; color: #8fa2c9; margin-bottom: 3px; }
 .done-meta strong { font-size: 14px; color: #fff; font-family: Menlo, monospace; word-break: break-all; }
+.done-meta strong.paid { color: #6ee7a8; } /* 支付状态用绿色，与红色金额区分 */
 .done-addr { font-size: 12.5px; color: #9db0d6; line-height: 1.7; }
 .done-nav { display: flex; gap: 12px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
 .done-nav button {

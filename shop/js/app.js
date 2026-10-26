@@ -1123,6 +1123,9 @@ function renderDone() {
   if (!ordersCache.length) return false;
   const o = ordersCache[0]; /* 刚提交的最新订单 */
   $('doneId').textContent = o.id;
+  $('doneTime').textContent = fmtT(o.time);
+  /* 本站没有支付环节：状态如实标注未扣款，不编造支付渠道和流水号 */
+  $('donePay').textContent = '已支付 · 演示未扣款';
   $('doneAmt').textContent = money(o.amount);
   $('doneEta').textContent = fmtT(o.traces[4].t) + ' 前后'; /* 预计派送日 */
   $('doneAddr').innerHTML = `📍 收货：<b>${esc(o.addr.prov)} ${esc(o.addr.city)}</b> ${esc(o.addr.detail)}（${esc(o.addr.name)} 收）`;
