@@ -15,7 +15,7 @@
 | 后端 | Python 3 标准库 | 零第三方依赖，`ThreadingHTTPServer` 多线程 HTTP 服务 |
 | 数据 | JSON 文件（data/*.json） | 文件当轻量数据库，不用装 MySQL；`RLock` 防并发写乱 |
 | 认证 | Bearer Token | 登录后发一张「通行证」，之后每次请求带上证明身份 |
-| 密码 | PBKDF2-HMAC-SHA256 + 随机盐 | 不存明文，不可逆，60 万次迭代 |
+| 密码 | PBKDF2-HMAC-SHA256 + 随机盐 | 不存明文，不可逆，12 万次迭代 |
 
 ---
 ## 功能亮点
@@ -45,9 +45,9 @@ shop/
 │   ├── chatbot.js       ← AI 客服
 │   └── auth.js          ← 登录认证 + API 封装
 ├── assets/
-│   ├── products/        ← 27 张商品图
+│   ├── products/        ← 26 张商品图 + 1 张客服头像图
 │   └── starry.jpg       ← 星空完成页背景
-└── data/                ← 运行时数据（JSON，不提交 Git）
+└── data/                ← JSON 数据（仅 products.json 入库）
 ```
 ---
 ## 快速启动
@@ -133,7 +133,7 @@ python3 server.py
 
 ---
 ## 安全与存储决策
-- **密码**：只存盐 + PBKDF2-SHA256 哈希（60 万次迭代），原密码不落盘；每人独立随机盐，同一密码哈希也不同，防彩虹表。
+- **密码**：只存盐 + PBKDF2-SHA256 哈希（12 万次迭代），原密码不落盘；每人独立随机盐，同一密码哈希也不同，防彩虹表。
 - **为什么没用 ORM**：数据在 JSON 文件里，没有关系型数据库，ORM 无用武之地。读写就是 `load_json_file` / `save_json_file`；将来换 SQLite 或 MySQL 再引入。
 - **XSS**：前端所有用户输入插入 HTML 前过 `esc()`，写 `<script>alert(1)</script>` 只会显示成文本；后端校验参数（昵称 `^[\w\u4e00-\u9fa5]{2,16}$`），`data/` 目录禁止 HTTP 直接访问。
 - **登录防爆破**：同一昵称连错 5 次锁 10 分钟（429），内存记录、重启清零；错误文案统一「昵称或密码错误」，不暴露用户是否存在。
